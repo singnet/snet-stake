@@ -159,10 +159,18 @@ contract TokenStake {
         // Check for Min Stake
         require(stakeAmount > 0 && stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount.add(stakeAmount) >= minStake, "Invalid stake amount");
 
-        StakeInfo memory req;
-
         // Transfer the Tokens to Contract
         require(token.transferFrom(msg.sender, this, stakeAmount), "Unable to transfer token to the contract");
+
+        require(createStake(stakeAmount));
+
+        emit SubmitStake(msg.sender, currentStakeMapIndex, stakeAmount);
+
+    }
+
+    function createStake(uint256 stakeAmount) internal returns(bool) {
+
+        StakeInfo memory req;
 
         // Check if the user already staked in the current staking period
         if(stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount > 0) {
@@ -193,8 +201,7 @@ contract TokenStake {
         // Update the Total Stake
         totalStake = totalStake.add(stakeAmount);
 
-        emit SubmitStake(msg.sender, currentStakeMapIndex, stakeAmount);
-
+        return true;
     }
 
     function withdrawStake(uint256 _stakeMapIndex) public {
