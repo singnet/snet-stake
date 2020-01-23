@@ -440,6 +440,9 @@ contract('TokenStake', function(accounts) {
 
         await sleep(60); // Sleep to elapse the Submission time
 
+        // Check for Staking after staking period - Should Fail
+        await testErrorRevert(tokenStake.submitStake( stakeAmount_a5, {from:accounts[5]}));
+
         // Approve Stake where accounts[9] is token Operator
         await approveStakeAndVerify(accounts[1], stakeAmount_a1, accounts[9]);
         await approveStakeAndVerify(accounts[5], stakeAmount_a5, accounts[9]);
@@ -452,6 +455,9 @@ contract('TokenStake', function(accounts) {
         await rejectStakeAndVerify(accounts[4], accounts[9]);
 
         await sleep(60); // Sleep to elapse the Approval time
+
+        // Check for Staking after staking period - Should Fail
+        await testErrorRevert(tokenStake.submitStake( stakeAmount_a5, {from:accounts[5]}));
 
     });
 

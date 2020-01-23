@@ -29,6 +29,7 @@ contract TokenStake {
         uint256 stakeIndex;
     }
 
+    // Staking period timestamp (TODO: debatable on timestamp vs blocknumber - went with timestamp)
     struct StakePeriod {
         uint256 startPeriod;
         uint256 endPeriod;
@@ -81,27 +82,25 @@ contract TokenStake {
         currentStakeMapIndex = 0;
     }
 
-    function updateOwner(address newOwner) public onlyOwner returns(bool) {
+    function updateOwner(address newOwner) public onlyOwner {
 
         require(newOwner != address(0), "Invalid owner address");
         
         owner = newOwner;
 
         emit NewOwner(newOwner);
-        return true;
     }
 
-    function updateOperator(address newOperator) public onlyOwner returns(bool) {
+    function updateOperator(address newOperator) public onlyOwner {
 
         require(newOperator != address(0), "Invalid operator address");
         
         tokenOperator = newOperator;
 
         emit NewOperator(newOperator);
-        return true;
     }
 
-    function depositToken(uint256 value) public onlyOperator returns(bool) {
+    function depositToken(uint256 value) public onlyOperator {
 
         // Input validation are in place in token contract
         require(token.transferFrom(msg.sender, this, value), "Unable to transfer token to the contract"); 
@@ -109,10 +108,9 @@ contract TokenStake {
         // Update the Token Balance
         tokenBalance = tokenBalance.add(value);
 
-        return true;
     }
     
-    function withdrawToken(uint256 value) public onlyOperator returns(bool)
+    function withdrawToken(uint256 value) public onlyOperator
     {
         // Token Balance is sum of all Approved Amounts, Restricts withdrawal of stake which are in approval process
         
@@ -122,11 +120,10 @@ contract TokenStake {
         // Update the token balance
         tokenBalance = tokenBalance.sub(value);
 
-        return true;
     }
 
-    // TODO: See if need additional function to Update the Current Stake Period
-    function openForStake(uint256 _startPeriod, uint256 _endPeriod, uint256 _approvalEndPeriod, uint256 _minStake, uint256 _interestRate) public onlyOperator returns(bool) {
+    // TODO: See if we need additional function to Update the Current Stake Period
+    function openForStake(uint256 _startPeriod, uint256 _endPeriod, uint256 _approvalEndPeriod, uint256 _minStake, uint256 _interestRate) public onlyOperator {
 
         // Check Input Parameters
         require(_startPeriod >= now && _startPeriod < _endPeriod &&  _endPeriod < _approvalEndPeriod, "Invalid stake period");
@@ -152,10 +149,9 @@ contract TokenStake {
 
         // TODO: Do we need to allow next staking period in case if any existsing stakes waiting for approval
 
-        return true;
     }
 
-    function submitStake(uint256 stakeAmount) public returns(bool) {
+    function submitStake(uint256 stakeAmount) public {
 
         // Request for Stake should be Open
         require(now >= stakeMap[currentStakeMapIndex].startPeriod && now <= stakeMap[currentStakeMapIndex].endPeriod, "Staking at this point not allowed");
@@ -199,10 +195,9 @@ contract TokenStake {
 
         emit SubmitStake(msg.sender, currentStakeMapIndex, stakeAmount);
 
-        return true;
     }
 
-    function withdrawStake(uint256 _stakeMapIndex) public returns(bool) {
+    function withdrawStake(uint256 _stakeMapIndex) public {
 
         require(now > stakeMap[_stakeMapIndex].endPeriod, "Need to wait till the end of stake period");
         
@@ -235,10 +230,9 @@ contract TokenStake {
 
         emit WithdrawStake(msg.sender, _stakeMapIndex, rewardAmount, totalAmount);
 
-        return true;
     }
 
-    function approveStake(address staker, uint256 approvedStakeAmount) public onlyOperator returns(bool) {
+    function approveStake(address staker, uint256 approvedStakeAmount) public onlyOperator {
 
         // Request for Stake should be Open
         require(now > stakeMap[currentStakeMapIndex].endPeriod && now <= stakeMap[currentStakeMapIndex].approvalEndPeriod, "Approval at this point not allowed");
@@ -277,11 +271,9 @@ contract TokenStake {
 
         emit ApproveStake(staker, currentStakeMapIndex, msg.sender, approvedStakeAmount);
 
-        return true;
-
     }
 
-    function rejectStake(address staker) public onlyOperator returns(bool) {
+    function rejectStake(address staker) public onlyOperator {
 
         // Request for Stake should be Open - Allow for rejection after approval date as well
         require(now > stakeMap[currentStakeMapIndex].endPeriod, "Rejection at this point not allowed");
@@ -305,8 +297,6 @@ contract TokenStake {
         stakeInfo.status = StakeStatus.Rejected;
 
         emit RejectStake(staker, currentStakeMapIndex, msg.sender);
-
-        return true;
 
     }
 
