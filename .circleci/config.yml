@@ -1,0 +1,18 @@
+version: 2
+jobs:
+  build:
+    docker:
+    - image: circleci/node:10.11
+    working_directory: ~/singnet/snet-stake
+    environment:
+      TRIGGER_BUILD_BRANCH: master
+    steps:
+    - checkout
+    - run:
+        name: Install Dependencies
+        command: |
+          npm install 
+    - run:
+        name: Run Test cases
+        command: |
+          npm run test
