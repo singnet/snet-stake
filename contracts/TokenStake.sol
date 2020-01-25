@@ -24,7 +24,6 @@ contract TokenStake {
         uint256 amount;
         uint256 stakedAmount;
         uint256 approvedAmount;
-        uint256 rewardAmount;   // Check if this field is needed as we can compute it
         StakeStatus status;
         uint256 stakeIndex;
     }

@@ -662,6 +662,18 @@ contract('TokenStake', function(accounts) {
         assert.equal(stakeHolders_1[1], accounts[7]);
         assert.equal(stakeHolders_1[2], accounts[5]);
 
+
+        // Check for the Staker staking periods
+        const stakeHolders_A1 = await tokenStake.getStakeHolderStakingPeriods(accounts[1]); // Returns an array of staking periods
+        const stakeHolders_A5 = await tokenStake.getStakeHolderStakingPeriods(accounts[5]); // Returns an array of staking periods
+        const stakeHolders_A6 = await tokenStake.getStakeHolderStakingPeriods(accounts[6]); // Returns an array of staking periods
+
+        assert.equal(stakeHolders_A1.length, 1);
+        assert.equal(stakeHolders_A5.length, 2);
+        assert.equal(stakeHolders_A5[0],0);         // 1st Staking Period
+        assert.equal(stakeHolders_A5[1],1);         // 2nd Staking Period after Renewal
+        assert.equal(stakeHolders_A6.length, 1);
+
     });
 
 });
