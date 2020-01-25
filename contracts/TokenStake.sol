@@ -35,6 +35,7 @@ contract TokenStake {
         uint256 endPeriod;
         uint256 approvalEndPeriod;
         uint256 interestRate;
+        uint256 interestRateDecimals;   // Number of decimals to support decimal points
 
         address[] stakeHolders;
         mapping(address => StakeInfo) stakeHolderInfo; 
@@ -49,7 +50,7 @@ contract TokenStake {
     event NewOwner(address owner);
     event NewOperator(address tokenOperator);
 
-    event OpenForStake(uint256 indexed stakeIndex, address indexed tokenOperator, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 minStake, uint256 interestRate);
+    event OpenForStake(uint256 indexed stakeIndex, address indexed tokenOperator, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 minStake, uint256 interestRate, uint256 interestRateDecimals);
     event SubmitStake(address indexed staker, uint256 indexed stakeIndex, uint256 stakeAmount);
     event WithdrawStake(address indexed staker, uint256 indexed stakeIndex, uint256 rewardAmount, uint256 totalAmount);
 
@@ -152,12 +153,12 @@ contract TokenStake {
 
     }
 
-    // TODO: See if we need additional function to Update the Current Stake Period
-    function openForStake(uint256 _startPeriod, uint256 _endPeriod, uint256 _approvalEndPeriod, uint256 _minStake, uint256 _interestRate) public onlyOperator {
+    // TODO: Check if we need additional function to Update the Current Stake Period
+    function openForStake(uint256 _startPeriod, uint256 _endPeriod, uint256 _approvalEndPeriod, uint256 _minStake, uint256 _interestRate, uint256 _interestRateDecimals) public onlyOperator {
 
         // Check Input Parameters
         require(_startPeriod >= now && _startPeriod < _endPeriod &&  _endPeriod < _approvalEndPeriod, "Invalid stake period");
-        require(_minStake > 0 && _interestRate > 0, "Invalid min stake or interest rate" );
+        require(_minStake > 0 && _interestRate > 0 && _interestRateDecimals >=0, "Invalid min stake or interest rate" );
 
         // Check Stake in Progress
         // !(now >= stakeMap[currentStakeMapIndex].startPeriod && now <= stakeMap[currentStakeMapIndex].approvalEndPeriod)
@@ -171,11 +172,12 @@ contract TokenStake {
         stakePeriod.endPeriod = _endPeriod;
         stakePeriod.approvalEndPeriod = _approvalEndPeriod;
         stakePeriod.interestRate = _interestRate;
+        stakePeriod.interestRateDecimals = _interestRateDecimals;
         stakeMap[currentStakeMapIndex] = stakePeriod;
 
         minStake = _minStake;
          
-        emit OpenForStake(nextStakeMapIndex++, msg.sender, _startPeriod, _endPeriod, _approvalEndPeriod, _minStake, _interestRate);
+        emit OpenForStake(nextStakeMapIndex++, msg.sender, _startPeriod, _endPeriod, _approvalEndPeriod, _minStake, _interestRate, _interestRateDecimals);
 
         // TODO: Do we need to allow next staking period in case if any existsing stakes waiting for approval
 
@@ -202,7 +204,7 @@ contract TokenStake {
         uint256 totalAmount;
         uint256 rewardAmount;
 
-        rewardAmount = stakeInfo.amount.mul(stakeMap[stakeMapIndex].interestRate).div(100);
+        rewardAmount = stakeInfo.amount.mul(stakeMap[stakeMapIndex].interestRate).div(10 ** stakeMap[stakeMapIndex].interestRateDecimals);
         totalAmount = stakeInfo.amount.add(rewardAmount);
 
         // Check for minStake
@@ -271,7 +273,7 @@ contract TokenStake {
         uint256 totalAmount;
         uint256 rewardAmount;
 
-        rewardAmount = stakeInfo.amount.mul(stakeMap[stakeMapIndex].interestRate).div(100);
+        rewardAmount = stakeInfo.amount.mul(stakeMap[stakeMapIndex].interestRate).div(10 ** stakeMap[stakeMapIndex].interestRateDecimals);
         totalAmount = stakeInfo.amount.add(rewardAmount);
 
         // Update the User Balance
@@ -374,7 +376,7 @@ contract TokenStake {
     function getStakeInfo(uint256 stakeMapIndex, address staker) 
     public 
     view
-    returns (bool found, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 interestRate, uint256 amount, uint256 stakedAmount, uint256 approvedAmount, StakeStatus status, uint256 stakeIndex) 
+    returns (bool found, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 interestRate, uint256 interestRateDecimals, uint256 amount, uint256 stakedAmount, uint256 approvedAmount, StakeStatus status, uint256 stakeIndex) 
     {
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
@@ -388,7 +390,8 @@ contract TokenStake {
         endPeriod = stakeMap[stakeMapIndex].endPeriod;
         approvalEndPeriod = stakeMap[stakeMapIndex].approvalEndPeriod;
         interestRate =  stakeMap[stakeMapIndex].interestRate;
-        
+        interestRateDecimals = stakeMap[stakeMapIndex].interestRateDecimals;
+
         amount = stakeInfo.amount;
         stakedAmount = stakeInfo.stakedAmount;
         approvedAmount = stakeInfo.approvedAmount;
