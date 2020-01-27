@@ -18,13 +18,12 @@ contract TokenStake {
     uint256 public currentStakeMapIndex;
 
     // 0-Open, 1-Approved, 2-Rejected, 3-Claimed
-    enum StakeStatus { Open, Approved, Rejected, Claimed }
+    enum StakeStatus { Open, Approved, Rejected, Claimed, Renewed }
 
     struct StakeInfo {
         uint256 amount;
         uint256 stakedAmount;
         uint256 approvedAmount;
-        uint256 rewardAmount;   // Check if this field is needed as we can compute it
         StakeStatus status;
         uint256 stakeIndex;
     }
@@ -35,6 +34,7 @@ contract TokenStake {
         uint256 endPeriod;
         uint256 approvalEndPeriod;
         uint256 interestRate;
+        uint256 interestRateDecimals;   // Number of decimals to support decimal points
 
         address[] stakeHolders;
         mapping(address => StakeInfo) stakeHolderInfo; 
@@ -49,12 +49,14 @@ contract TokenStake {
     event NewOwner(address owner);
     event NewOperator(address tokenOperator);
 
-    event OpenForStake(uint256 indexed stakeIndex, address indexed tokenOperator, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 minStake, uint256 interestRate);
+    event OpenForStake(uint256 indexed stakeIndex, address indexed tokenOperator, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 minStake, uint256 interestRate, uint256 interestRateDecimals);
     event SubmitStake(address indexed staker, uint256 indexed stakeIndex, uint256 stakeAmount);
     event WithdrawStake(address indexed staker, uint256 indexed stakeIndex, uint256 rewardAmount, uint256 totalAmount);
 
     event ApproveStake(address indexed staker, uint256 indexed stakeIndex, address indexed tokenOperator, uint256 approvedStakeAmount);
     event RejectStake(address indexed staker, uint256 indexed stakeIndex, address indexed tokenOperator);
+
+    event RenewStake(address indexed staker, uint256 indexed newStakeIndex, uint256 oldStakeIndex, uint256 stakeAmount);
 
     // Modifiers
     modifier onlyOwner() {
@@ -68,6 +70,34 @@ contract TokenStake {
         require(
             msg.sender == tokenOperator,
             "Only operator can call this function."
+        );
+        _;
+    }
+    modifier allowSubmission() {
+        // Request for Stake should be Open
+        require(
+            now >= stakeMap[currentStakeMapIndex].startPeriod && 
+            now <= stakeMap[currentStakeMapIndex].endPeriod, 
+            "Staking at this point not allowed"
+        );
+        _;
+    }
+    modifier validMinStake(uint256 stakeAmount) {
+        // Check for Min Stake
+        require(
+            stakeAmount > 0 && 
+            stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount.add(stakeAmount) >= minStake, 
+            "Invalid stake amount"
+        );
+        _;
+    }
+    modifier allowWithdrawStake(uint256 stakeMapIndex) {
+        // Check to see withdraw stake is allowed
+        require(
+            now > stakeMap[stakeMapIndex].endPeriod && 
+            stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].amount > 0 && 
+            stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].status == StakeStatus.Approved, 
+            "Invalid withdraw request"
         );
         _;
     }
@@ -122,12 +152,12 @@ contract TokenStake {
 
     }
 
-    // TODO: See if we need additional function to Update the Current Stake Period
-    function openForStake(uint256 _startPeriod, uint256 _endPeriod, uint256 _approvalEndPeriod, uint256 _minStake, uint256 _interestRate) public onlyOperator {
+    // TODO: Check if we need additional function to Update the Current Stake Period
+    function openForStake(uint256 _startPeriod, uint256 _endPeriod, uint256 _approvalEndPeriod, uint256 _minStake, uint256 _interestRate, uint256 _interestRateDecimals) public onlyOperator {
 
         // Check Input Parameters
         require(_startPeriod >= now && _startPeriod < _endPeriod &&  _endPeriod < _approvalEndPeriod, "Invalid stake period");
-        require(_minStake > 0 && _interestRate > 0, "Invalid min stake or interest rate" );
+        require(_minStake > 0 && _interestRate > 0 && _interestRateDecimals >=0, "Invalid min stake or interest rate" );
 
         // Check Stake in Progress
         // !(now >= stakeMap[currentStakeMapIndex].startPeriod && now <= stakeMap[currentStakeMapIndex].approvalEndPeriod)
@@ -141,28 +171,67 @@ contract TokenStake {
         stakePeriod.endPeriod = _endPeriod;
         stakePeriod.approvalEndPeriod = _approvalEndPeriod;
         stakePeriod.interestRate = _interestRate;
+        stakePeriod.interestRateDecimals = _interestRateDecimals;
         stakeMap[currentStakeMapIndex] = stakePeriod;
 
         minStake = _minStake;
          
-        emit OpenForStake(nextStakeMapIndex++, msg.sender, _startPeriod, _endPeriod, _approvalEndPeriod, _minStake, _interestRate);
+        emit OpenForStake(nextStakeMapIndex++, msg.sender, _startPeriod, _endPeriod, _approvalEndPeriod, _minStake, _interestRate, _interestRateDecimals);
 
         // TODO: Do we need to allow next staking period in case if any existsing stakes waiting for approval
+        // Rejection is enabled even after the Approval Period, Works even after the pending items
 
     }
 
-    function submitStake(uint256 stakeAmount) public {
-
-        // Request for Stake should be Open
-        require(now >= stakeMap[currentStakeMapIndex].startPeriod && now <= stakeMap[currentStakeMapIndex].endPeriod, "Staking at this point not allowed");
-
-        // Check for Min Stake
-        require(stakeAmount > 0 && stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount.add(stakeAmount) >= minStake, "Invalid stake amount");
-
-        StakeInfo memory req;
+    function submitStake(uint256 stakeAmount) public allowSubmission validMinStake(stakeAmount) {
 
         // Transfer the Tokens to Contract
         require(token.transferFrom(msg.sender, this, stakeAmount), "Unable to transfer token to the contract");
+
+        require(createStake(stakeAmount));
+
+        emit SubmitStake(msg.sender, currentStakeMapIndex, stakeAmount);
+
+    }
+
+    // Renew stake along with reward
+    // TODO: Is it worth to ask amount to renew rather than considering amount with reward as renewal amount
+    function renewStake(uint256 stakeMapIndex) public allowSubmission allowWithdrawStake(stakeMapIndex) {
+
+        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
+
+        // Calculate the totalAmount
+        uint256 totalAmount;
+        uint256 rewardAmount;
+
+        rewardAmount = stakeInfo.amount.mul(stakeMap[stakeMapIndex].interestRate).div(10 ** stakeMap[stakeMapIndex].interestRateDecimals);
+        totalAmount = stakeInfo.amount.add(rewardAmount);
+
+        // Check for minStake
+        require(stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount.add(totalAmount) >= minStake, "Invalid stake amount");
+
+        // Update the User Balance
+        balances[msg.sender] = balances[msg.sender].sub(stakeInfo.amount);
+
+        // Update the Total Stake
+        totalStake = totalStake.sub(stakeInfo.amount);
+
+        // Update the token balance
+        tokenBalance = tokenBalance.sub(totalAmount);
+
+        // Update the Stake Status
+        stakeInfo.amount = 0;
+        stakeInfo.status = StakeStatus.Renewed;
+
+        require(createStake(totalAmount));
+
+        emit RenewStake(msg.sender, currentStakeMapIndex, stakeMapIndex, totalAmount);
+
+    }
+
+    function createStake(uint256 stakeAmount) internal returns(bool) {
+
+        StakeInfo memory req;
 
         // Check if the user already staked in the current staking period
         if(stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount > 0) {
@@ -193,23 +262,18 @@ contract TokenStake {
         // Update the Total Stake
         totalStake = totalStake.add(stakeAmount);
 
-        emit SubmitStake(msg.sender, currentStakeMapIndex, stakeAmount);
-
+        return true;
     }
 
-    function withdrawStake(uint256 _stakeMapIndex) public {
+    function withdrawStake(uint256 stakeMapIndex) public allowWithdrawStake(stakeMapIndex) {
 
-        require(now > stakeMap[_stakeMapIndex].endPeriod, "Need to wait till the end of stake period");
-        
-        StakeInfo storage stakeInfo = stakeMap[_stakeMapIndex].stakeHolderInfo[msg.sender];
+        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
 
-        require(stakeInfo.amount > 0 && stakeInfo.status == StakeStatus.Approved, "Invalid withdraw request");
-        
         // Calculate the totalAmount
         uint256 totalAmount;
         uint256 rewardAmount;
 
-        rewardAmount = stakeInfo.amount.mul(stakeMap[_stakeMapIndex].interestRate).div(100);
+        rewardAmount = stakeInfo.amount.mul(stakeMap[stakeMapIndex].interestRate).div(10 ** stakeMap[stakeMapIndex].interestRateDecimals);
         totalAmount = stakeInfo.amount.add(rewardAmount);
 
         // Update the User Balance
@@ -228,7 +292,7 @@ contract TokenStake {
         // Call the transfer function - Already handles balance check
         require(token.transfer(msg.sender, totalAmount), "Unable to transfer token back to the account");
 
-        emit WithdrawStake(msg.sender, _stakeMapIndex, rewardAmount, totalAmount);
+        emit WithdrawStake(msg.sender, stakeMapIndex, rewardAmount, totalAmount);
 
     }
 
@@ -273,12 +337,12 @@ contract TokenStake {
 
     }
 
-    function rejectStake(address staker) public onlyOperator {
+    function rejectStake(uint256 stakeMapIndex,address staker) public onlyOperator {
 
-        // Request for Stake should be Open - Allow for rejection after approval date as well
-        require(now > stakeMap[currentStakeMapIndex].endPeriod, "Rejection at this point not allowed");
+        // Request for Stake should be Open - Allow for rejection after approval period as well
+        require(now > stakeMap[stakeMapIndex].endPeriod, "Rejection at this point not allowed");
 
-        StakeInfo storage stakeInfo = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker];
+        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
 
         require(stakeInfo.amount > 0 && stakeInfo.status == StakeStatus.Open, "No staking request found");
 
@@ -296,37 +360,38 @@ contract TokenStake {
         stakeInfo.approvedAmount = 0;
         stakeInfo.status = StakeStatus.Rejected;
 
-        emit RejectStake(staker, currentStakeMapIndex, msg.sender);
+        emit RejectStake(staker, stakeMapIndex, msg.sender);
 
     }
 
     // Getter Functions
-    function getStakeHolders(uint256 _stakeMapIndex) public view returns(address[]) {
-        return stakeMap[_stakeMapIndex].stakeHolders;
+    function getStakeHolders(uint256 stakeMapIndex) public view returns(address[]) {
+        return stakeMap[stakeMapIndex].stakeHolders;
     }
 
     function getStakeHolderStakingPeriods(address staker) public view returns(uint256[]) {
         return stakerPeriodMap[staker];
     }
 
-    function getStakeInfo(uint256 _stakeMapIndex, address staker) 
+    function getStakeInfo(uint256 stakeMapIndex, address staker) 
     public 
     view
-    returns (bool found, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 interestRate, uint256 amount, uint256 stakedAmount, uint256 approvedAmount, StakeStatus status, uint256 stakeIndex) 
+    returns (bool found, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 interestRate, uint256 interestRateDecimals, uint256 amount, uint256 stakedAmount, uint256 approvedAmount, StakeStatus status, uint256 stakeIndex) 
     {
 
-        StakeInfo storage stakeInfo = stakeMap[_stakeMapIndex].stakeHolderInfo[staker];
+        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
         
         found = false;
         if(stakeInfo.stakedAmount > 0 ) {
             found = true;
         }
 
-        startPeriod = stakeMap[_stakeMapIndex].startPeriod;
-        endPeriod = stakeMap[_stakeMapIndex].endPeriod;
-        approvalEndPeriod = stakeMap[_stakeMapIndex].approvalEndPeriod;
-        interestRate =  stakeMap[_stakeMapIndex].interestRate;
-        
+        startPeriod = stakeMap[stakeMapIndex].startPeriod;
+        endPeriod = stakeMap[stakeMapIndex].endPeriod;
+        approvalEndPeriod = stakeMap[stakeMapIndex].approvalEndPeriod;
+        interestRate =  stakeMap[stakeMapIndex].interestRate;
+        interestRateDecimals = stakeMap[stakeMapIndex].interestRateDecimals;
+
         amount = stakeInfo.amount;
         stakedAmount = stakeInfo.stakedAmount;
         approvedAmount = stakeInfo.approvedAmount;
