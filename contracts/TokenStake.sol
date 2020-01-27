@@ -179,6 +179,7 @@ contract TokenStake {
         emit OpenForStake(nextStakeMapIndex++, msg.sender, _startPeriod, _endPeriod, _approvalEndPeriod, _minStake, _interestRate, _interestRateDecimals);
 
         // TODO: Do we need to allow next staking period in case if any existsing stakes waiting for approval
+        // Rejection is enabled even after the Approval Period, Works even after the pending items
 
     }
 
@@ -336,12 +337,12 @@ contract TokenStake {
 
     }
 
-    function rejectStake(address staker) public onlyOperator {
+    function rejectStake(uint256 stakeMapIndex,address staker) public onlyOperator {
 
-        // Request for Stake should be Open - Allow for rejection after approval date as well
-        require(now > stakeMap[currentStakeMapIndex].endPeriod, "Rejection at this point not allowed");
+        // Request for Stake should be Open - Allow for rejection after approval period as well
+        require(now > stakeMap[stakeMapIndex].endPeriod, "Rejection at this point not allowed");
 
-        StakeInfo storage stakeInfo = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker];
+        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
 
         require(stakeInfo.amount > 0 && stakeInfo.status == StakeStatus.Open, "No staking request found");
 
@@ -359,7 +360,7 @@ contract TokenStake {
         stakeInfo.approvedAmount = 0;
         stakeInfo.status = StakeStatus.Rejected;
 
-        emit RejectStake(staker, currentStakeMapIndex, msg.sender);
+        emit RejectStake(staker, stakeMapIndex, msg.sender);
 
     }
 

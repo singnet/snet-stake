@@ -187,24 +187,23 @@ contract('TokenStake', function(accounts) {
 
         }
 
-        const rejectStakeAndVerify = async(staker, _account) => {
+        const rejectStakeAndVerify = async(_stakeMapIndex, staker, _account) => {
 
             // Token Balance
             const wallet_bal_b = (await token.balanceOf(staker)).toNumber();
 
             // Contract Stake Balance
-            const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
             const contract_tokenBalance_b = (await tokenStake.tokenBalance.call()).toNumber();
             const contract_account_bal_b = (await tokenStake.balances(staker)).toNumber();
 
             const [found_b, startPeriod_b, endPeriod_b, approvalEndPeriod_b, interestRate_b, interestRateDecimals_b, amount_b, stakedAmount_b, approvedAmount_b, status_b, stakeIndex_b]
-            = await tokenStake.getStakeInfo.call(currentStakeMapIndex, staker);
+            = await tokenStake.getStakeInfo.call(_stakeMapIndex, staker);
 
             // Call Reject Stake Request
-            await tokenStake.rejectStake(staker, {from:_account});
+            await tokenStake.rejectStake(_stakeMapIndex, staker, {from:_account});
 
             const [found_a, startPeriod_a, endPeriod_a, approvalEndPeriod_a, interestRate_a, interestRateDecimals_a, amount_a, stakedAmount_a, approvedAmount_a, status_a, stakeIndex_a]
-            = await tokenStake.getStakeInfo.call(currentStakeMapIndex, staker);
+            = await tokenStake.getStakeInfo.call(_stakeMapIndex, staker);
 
             // Token Balance
             const wallet_bal_a = (await token.balanceOf(staker)).toNumber();
@@ -525,8 +524,8 @@ contract('TokenStake', function(accounts) {
         await approveStakeAndVerify(accounts[3], stakeAmount_a3-50000000, accounts[9]);
 
         // Rejest Stake
-        await rejectStakeAndVerify(accounts[2], accounts[9]);
-        await rejectStakeAndVerify(accounts[4], accounts[9]);
+        await rejectStakeAndVerify(currentStakeMapIndex, accounts[2], accounts[9]);
+        await rejectStakeAndVerify(currentStakeMapIndex, accounts[4], accounts[9]);
 
         await sleep(60); // Sleep to elapse the Approval time
 
@@ -661,7 +660,6 @@ contract('TokenStake', function(accounts) {
         assert.equal(stakeHolders_1[0], accounts[6]);
         assert.equal(stakeHolders_1[1], accounts[7]);
         assert.equal(stakeHolders_1[2], accounts[5]);
-
 
         // Check for the Staker staking periods
         const stakeHolders_A1 = await tokenStake.getStakeHolderStakingPeriods(accounts[1]); // Returns an array of staking periods
