@@ -462,23 +462,16 @@ contract('TokenStake', function(accounts) {
             // New Stake Should be Auto Renewed
             assert.equal(autoRenewal_a, true);
 
-console.log("Here...4");
-
             // Should not be any change to Pending Approval Amount
             assert.equal(pendingForApprovalAmount_a.toNumber(), pendingForApprovalAmount_b.toNumber());
             // Approved Amount should be increased
             assert.equal(approvedAmount_a.toNumber(), approvedAmount_b.toNumber() + _approvedAmount);
-
-console.log("Here...5");
-
 
             //Overall token balance in the contract should decrease
             assert.equal(contract_tokenBalance_a, contract_tokenBalance_b - returnAmount);
 
             // Staking Period Window Total Stake should increase
             assert.equal(windowTotalStake_a.toNumber(), windowTotalStake_b.toNumber() + _approvedAmount);
-
-console.log("Here...6");
 
             // Account balance in the contract should reduce if approved amount < new staked amount (StakedAmount + Reward)
             assert.equal(contract_account_bal_a, contract_account_bal_b + rewardAmount - returnAmount);
@@ -509,12 +502,12 @@ console.log("Here...6");
             const [found_b, amount_b, stakedAmount_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b, status_b, stakeIndex_b]
             = await tokenStake.getStakeInfo.call(currentStakeMapIndex, _account);
 
-console.log("contract_tokenBalance_b - ", contract_tokenBalance_b);
-console.log("amount_eb - ", amount_eb);
-console.log("windowRewardAmount_eb - ", windowRewardAmount_eb);
-console.log("windowTotalStake_eb - ", windowTotalStake_eb);
-console.log("windowMaxCap_eb - ", windowMaxCap_eb);
-console.log("reward amount - ", Math.floor(amount_eb.toNumber() * windowRewardAmount_eb.toNumber() / (windowTotalStake_eb.toNumber() < windowMaxCap_eb.toNumber() ? windowTotalStake_eb.toNumber() : windowMaxCap_eb.toNumber())))
+// console.log("contract_tokenBalance_b - ", contract_tokenBalance_b);
+// console.log("amount_eb - ", amount_eb);
+// console.log("windowRewardAmount_eb - ", windowRewardAmount_eb);
+// console.log("windowTotalStake_eb - ", windowTotalStake_eb);
+// console.log("windowMaxCap_eb - ", windowMaxCap_eb);
+// console.log("reward amount - ", Math.floor(amount_eb.toNumber() * windowRewardAmount_eb.toNumber() / (windowTotalStake_eb.toNumber() < windowMaxCap_eb.toNumber() ? windowTotalStake_eb.toNumber() : windowMaxCap_eb.toNumber())))
 
             // renew the Stake
             await tokenStake.renewStake(existingStakeMapIndex, _autoRenewal, {from:_account});
