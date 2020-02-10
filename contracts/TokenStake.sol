@@ -106,7 +106,6 @@ contract TokenStake {
         _;
     }
 
-    // TODO - Check if we need minStake Validation for Auto Renewal
     modifier validStakeLimit(address staker, uint256 stakeAmount) {
         // Check for Min Stake
         require(
@@ -258,23 +257,23 @@ contract TokenStake {
 
     }
 
-    function createStake(uint256 stakeAmount, bool autoRenewal, StakeStatus stakeStatus) internal returns(bool) {
+    function createStake(address staker, uint256 stakeAmount, bool autoRenewal, StakeStatus stakeStatus) internal returns(bool) {
 
         StakeInfo memory req;
 
         // Check if the user already staked in the current staking period
-        if(stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount > 0) {
+        if(stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].amount > 0) {
 
-            stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount = stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount.add(stakeAmount);
-            stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].stakedAmount = stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].stakedAmount.add(stakeAmount);
+            stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].amount = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].amount.add(stakeAmount);
+            stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].stakedAmount = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].stakedAmount.add(stakeAmount);
 
             if(stakeStatus == StakeStatus.Open) {
-                stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].pendingForApprovalAmount = stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].pendingForApprovalAmount.add(stakeAmount);
+                stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].pendingForApprovalAmount = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].pendingForApprovalAmount.add(stakeAmount);
             } else if (stakeStatus == StakeStatus.Approved) {
-                stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].approvedAmount = stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].approvedAmount.add(stakeAmount);
+                stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].approvedAmount = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].approvedAmount.add(stakeAmount);
             }
 
-            stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].autoRenewal = autoRenewal;
+            stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].autoRenewal = autoRenewal;
 
         } else {
 
@@ -292,13 +291,13 @@ contract TokenStake {
                 req.approvedAmount = stakeAmount;
             }
 
-            stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender] = req;
+            stakeMap[currentStakeMapIndex].stakeHolderInfo[staker] = req;
 
             // Add to the Stake Holders List
-            stakeMap[currentStakeMapIndex].stakeHolders.push(msg.sender);
+            stakeMap[currentStakeMapIndex].stakeHolders.push(staker);
 
             // Add the currentStakeMapIndex to Address
-            stakerPeriodMap[msg.sender].push(currentStakeMapIndex);
+            stakerPeriodMap[staker].push(currentStakeMapIndex);
         }
 
         return true;
@@ -309,7 +308,7 @@ contract TokenStake {
         // Transfer the Tokens to Contract
         require(token.transferFrom(msg.sender, this, stakeAmount), "Unable to transfer token to the contract");
 
-        require(createStake(stakeAmount, autoRenewal, StakeStatus.Open));
+        require(createStake(msg.sender, stakeAmount, autoRenewal, StakeStatus.Open));
 
         // Update the User balance
         balances[msg.sender] = balances[msg.sender].add(stakeAmount);
@@ -334,7 +333,7 @@ contract TokenStake {
         return calcRewardAmount;
     }
 
-    function autoRenewStake(uint256 stakeMapIndex, address staker, uint256 approvedAmount) public onlyOperator validStakeLimit(staker, approvedAmount) allowSubmission allowAutoRenewStake(stakeMapIndex, staker) {
+    function autoRenewStake(uint256 stakeMapIndex, address staker, uint256 approvedAmount) public onlyOperator allowSubmission allowAutoRenewStake(stakeMapIndex, staker) {
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
 
@@ -349,7 +348,7 @@ contract TokenStake {
         require(approvedAmount <= totalAmount, "Invalid approved amount");
 
         // Create a new stake in current staking period
-        require(createStake(approvedAmount, stakeInfo.autoRenewal, StakeStatus.Approved));
+        require(createStake(staker, approvedAmount, stakeInfo.autoRenewal, StakeStatus.Approved));
 
         if(approvedAmount < totalAmount) {
 
@@ -359,6 +358,9 @@ contract TokenStake {
             require(token.transfer(staker, returnAmount), "Unable to transfer token back to the account");
 
         }
+
+        // Update current stake period total stake
+        stakeMap[currentStakeMapIndex].windowTotalStake = stakeMap[currentStakeMapIndex].windowTotalStake.add(approvedAmount);
 
         // Update the User Balance
         balances[staker] = balances[staker].add(rewardAmount).sub(returnAmount);
@@ -397,7 +399,7 @@ contract TokenStake {
             "Invalid stake amount"
         );
 
-        require(createStake(totalAmount, autoRenewal, StakeStatus.Open));
+        require(createStake(msg.sender, totalAmount, autoRenewal, StakeStatus.Open));
 
         // Update the User Balance
         balances[msg.sender] = balances[msg.sender].add(rewardAmount);
@@ -469,8 +471,8 @@ contract TokenStake {
         StakeInfo storage stakeInfo = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker];
 
         // Stake Request Status Should be Open
-        // TODO - Check if we need handle explicitly Status Approved for Auto Renewal 
-        require(stakeInfo.status == StakeStatus.Open && stakeInfo.pendingForApprovalAmount > 0 && stakeInfo.pendingForApprovalAmount >= approvedStakeAmount, "Cannot approve beyond stake amount");
+        // Stake Request Status Could be Approved In Case of Auto Renewal with Additional Submission
+        require((stakeInfo.status == StakeStatus.Open || stakeInfo.status == StakeStatus.Approved) && stakeInfo.pendingForApprovalAmount > 0 && stakeInfo.pendingForApprovalAmount >= approvedStakeAmount, "Cannot approve beyond stake amount");
 
         uint256 returnAmount;
 
@@ -510,7 +512,8 @@ contract TokenStake {
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
 
-        require(stakeInfo.pendingForApprovalAmount > 0 && stakeInfo.status == StakeStatus.Open , "No staking request found");
+        // In case of if there are auto renewals reject should not be allowed
+        require(stakeInfo.pendingForApprovalAmount > 0 && stakeInfo.approvedAmount == 0 && stakeInfo.status == StakeStatus.Open , "No staking request found");
 
         // transfer back the stake to user account
         require(token.transfer(staker, stakeInfo.pendingForApprovalAmount), "Unable to transfer token back to the account");
@@ -524,7 +527,6 @@ contract TokenStake {
         // Update the Status & Amount
         stakeInfo.amount = 0;
         stakeInfo.pendingForApprovalAmount = 0;
-        stakeInfo.approvedAmount = 0;
         stakeInfo.status = StakeStatus.Rejected;
 
         emit RejectStake(stakeMapIndex, staker, msg.sender);
