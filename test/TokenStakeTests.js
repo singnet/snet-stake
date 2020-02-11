@@ -264,10 +264,10 @@ contract('TokenStake', function(accounts) {
             assert.equal(contract_tokenBalance_a, contract_tokenBalance_b);
         }
 
-        const requestForWithdrawalAndVerify = async (_stakeMapIndex, _account) => {
+        const requestForClaimAndVerify = async (_stakeMapIndex, _account) => {
 
             // Call request for Withdraw Stake
-            await tokenStake.requestForWithdrawal(_stakeMapIndex, {from:_account});
+            await tokenStake.requestForClaim(_stakeMapIndex, {from:_account});
 
             const [found_a, amount_a, stakedAmount_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a, status_a, stakeIndex_a]
             = await tokenStake.getStakeInfo.call(_stakeMapIndex, _account);
@@ -733,7 +733,7 @@ contract('TokenStake', function(accounts) {
 
         await sleep(await waitTimeInSlot("OPEN_OPT_UPDATE")); // Sleep to get request for Withdrawal
 
-        await requestForWithdrawalAndVerify(currentStakeMapIndex, accounts[3]);
+        await requestForClaimAndVerify(currentStakeMapIndex, accounts[3]);
 
         // End Stake Period
         await sleep(await waitTimeInSlot("END_STAKE")); // Sleep to elapse the Stake Period

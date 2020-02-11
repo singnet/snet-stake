@@ -68,7 +68,7 @@ contract TokenStake {
 
     event OpenForStake(uint256 indexed stakeIndex, address indexed tokenOperator, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 rewardAmount);
     event SubmitStake(uint256 indexed stakeIndex, address indexed staker, uint256 stakeAmount, bool autoRenewal);
-    event RequestForWithdrawal(uint256 indexed stakeIndex, address indexed staker);
+    event RequestForClaim(uint256 indexed stakeIndex, address indexed staker);
     event ClaimStake(uint256 indexed stakeIndex, address indexed staker, uint256 rewardAmount, uint256 totalAmount);
 
     event ApproveStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator, uint256 approvedStakeAmount);
@@ -76,6 +76,9 @@ contract TokenStake {
 
     event AutoRenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, address tokenOperator, uint256 stakeAmount, uint256 approvedAmount);
     event RenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, uint256 stakeAmount);
+
+    event WithdrawStake(uint256 indexed stakeMapIndex, address indexed staker, uint256 stakeAmount);
+
 
     // Modifiers
     modifier onlyOwner() {
@@ -117,7 +120,7 @@ contract TokenStake {
         _;
     }
 
-    modifier allowRequestForWithdraw(uint256 stakeMapIndex) {
+    modifier allowRequestForClaim(uint256 stakeMapIndex) {
         // Check to see request for withdraw stake is allowed
         require(
             stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].amount > 0 && 
@@ -415,12 +418,12 @@ contract TokenStake {
 
     }
 
-    function requestForWithdrawal(uint256 stakeMapIndex) public allowRequestForWithdraw(stakeMapIndex) {
+    function requestForClaim(uint256 stakeMapIndex) public allowRequestForClaim(stakeMapIndex) {
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
         stakeInfo.autoRenewal = false;
 
-        emit RequestForWithdrawal(stakeMapIndex, msg.sender);
+        emit RequestForClaim(stakeMapIndex, msg.sender);
 
     }
 
@@ -502,7 +505,7 @@ contract TokenStake {
 
     }
 
-    function rejectStake(uint256 stakeMapIndex,address staker) public onlyOperator {
+    function rejectStake(uint256 stakeMapIndex, address staker) public onlyOperator {
 
         // Request for Stake should be Open - Allow for rejection after approval period as well
         require(now > stakeMap[stakeMapIndex].submissionEndPeriod, "Rejection at this point not allowed");
@@ -529,6 +532,46 @@ contract TokenStake {
         emit RejectStake(stakeMapIndex, staker, msg.sender);
 
     }
+
+    // To withdraw stake during submission phase
+    function withdrawStake(uint256 stakeMapIndex, uint256 stakeAmount) public {
+
+        require(
+            now >= stakeMap[stakeMapIndex].startPeriod && 
+            now <= stakeMap[stakeMapIndex].submissionEndPeriod,
+            "Staking withdraw at this point is not allowed"
+        );
+
+        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
+
+        // Stake Request Status Should be Open OR Could be Approved In Case of Auto Renewal with Additional Submission
+        require((stakeInfo.status == StakeStatus.Open || stakeInfo.status == StakeStatus.Approved) && 
+        stakeInfo.pendingForApprovalAmount > 0 &&
+        stakeInfo.pendingForApprovalAmount >= stakeAmount,
+        "Cannot approve beyond stake amount");
+
+        // Allow withdaw not less than minStake or Full Amount
+        require(
+            stakeInfo.amount.sub(stakeAmount) >= stakeMap[stakeMapIndex].minStake || 
+            stakeInfo.pendingForApprovalAmount.sub(stakeAmount) == 0
+        );
+
+        // Update the staker balance in the staking window
+        stakeInfo.pendingForApprovalAmount = stakeInfo.pendingForApprovalAmount.sub(stakeAmount);
+        stakeInfo.amount = stakeInfo.amount.sub(stakeAmount);
+
+        // Update the User balance
+        balances[msg.sender] = balances[msg.sender].sub(stakeAmount);
+        
+        // Update the Total Stake
+        totalStake = totalStake.sub(stakeAmount);
+
+        // Return to User Wallet
+        require(token.transfer(msg.sender, stakeAmount), "Unable to transfer token to the account");
+
+        emit WithdrawStake(stakeMapIndex, msg.sender, stakeAmount);
+    }
+
 
     // Getter Functions
     function getStakeHolders(uint256 stakeMapIndex) public view returns(address[]) {
