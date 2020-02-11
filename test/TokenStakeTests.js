@@ -276,7 +276,7 @@ contract('TokenStake', function(accounts) {
 
         }
 
-        const withdrawStakeAndVerify = async (_stakeMapIndex, _account) => {
+        const claimStakeAndVerify = async (_stakeMapIndex, _account) => {
 
             // Token Balance
             const wallet_bal_b = (await token.balanceOf(_account)).toNumber();
@@ -300,7 +300,7 @@ contract('TokenStake', function(accounts) {
 // console.log("Reward - ", Math.floor(amount_b.toNumber() * windowRewardAmount_b.toNumber() / (windowTotalStake_b.toNumber() < windowMaxCap_b.toNumber() ? windowTotalStake_b.toNumber() : windowMaxCap_b.toNumber())))
 
             // Call Withdraw Stake
-            await tokenStake.withdrawStake(_stakeMapIndex, {from:_account});
+            await tokenStake.claimStake(_stakeMapIndex, {from:_account});
 
             const [found_a, amount_a, stakedAmount_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a, status_a, stakeIndex_a]
             = await tokenStake.getStakeInfo.call(_stakeMapIndex, _account);
@@ -757,12 +757,12 @@ contract('TokenStake', function(accounts) {
         // Accounts 1,3,5 are approved - Anyone of them are eligible for withdrawing stake
         // Account - 5 will be used for testing Renewal Operation
 
-        await withdrawStakeAndVerify(currentStakeMapIndex, accounts[3]);
+        await claimStakeAndVerify(currentStakeMapIndex, accounts[3]);
 
-        await withdrawStakeAndVerify(currentStakeMapIndex, accounts[1]);
+        await claimStakeAndVerify(currentStakeMapIndex, accounts[1]);
         
         // Try withdraw the token again - Should Fail
-        await testErrorRevert(tokenStake.withdrawStake(currentStakeMapIndex, {from:accounts[3]}));
+        await testErrorRevert(tokenStake.claimStake(currentStakeMapIndex, {from:accounts[3]}));
 
     });
 
@@ -850,11 +850,11 @@ contract('TokenStake', function(accounts) {
 
         // Accounts 6,7, 5 are approved - Account 6, 7 are eligible for withdrawing stake
         // Account - 5 is from Renewal Operation
-        await withdrawStakeAndVerify(currentStakeMapIndex, accounts[6]);
+        await claimStakeAndVerify(currentStakeMapIndex, accounts[6]);
 
-        //await withdrawStakeAndVerify(currentStakeMapIndex, accounts[5]);
+        //await claimStakeAndVerify(currentStakeMapIndex, accounts[5]);
         // Account5 should not be able to Withdraw as it opted for auto renewal
-        await testErrorRevert(tokenStake.withdrawStake(currentStakeMapIndex, {from:accounts[5]}));
+        await testErrorRevert(tokenStake.claimStake(currentStakeMapIndex, {from:accounts[5]}));
 
     });
 
