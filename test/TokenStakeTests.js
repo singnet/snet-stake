@@ -768,12 +768,14 @@ contract('TokenStake', function(accounts) {
         // Withdraw Stake Before Approval
         await withdrawStakeAndVerify(currentStakeMapIndex, 5 * 100000000, accounts[3]);
 
-        // Withdraw Stake Before Approval
+        // Withdraw the Stake vilating minStake Criteria - Should Fail
+        await testErrorRevert(tokenStake.withdrawStake(currentStakeMapIndex, stakeAmount_a5 - 10000000, {from:accounts[5]}));
+
+        // Withdraw Full Stake Before Approval
         await withdrawStakeAndVerify(currentStakeMapIndex, stakeAmount_a5, accounts[5]);
 
         // Re-Submit the Stake
         await submitStakeAndVerify(stakeAmount_a5, autoRenewalNo, accounts[5]);
-
 
         // Try approve during submission phase - Should Fail
         await testErrorRevert(tokenStake.approveStake(accounts[1], stakeAmount_a1, {from:accounts[9]}));
@@ -944,10 +946,12 @@ contract('TokenStake', function(accounts) {
 
         // Get the StakeAmount for the staker - accounts[5]
         const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+        
         const [found_eb, amount_eb, stakedAmount_eb, pendingForApprovalAmount_eb, approvedAmount_eb, autoRenewal_eb, status_eb, stakeIndex_eb]
         = await tokenStake.getStakeInfo.call(existingStakeMapIndex, accounts[5]);
 
-        const max = 300;
+        const max = 100;
+        const stakeAmount_a5 =  getRandomNumber(max) * 100000000;
         const autoRenewalYes = true;
         const autoRenewalNo = false;
 
@@ -960,6 +964,13 @@ contract('TokenStake', function(accounts) {
         await testErrorRevert(tokenStake.autoRenewStake(existingStakeMapIndex, accounts[5], approvedAmount, {from:accounts[5]}));
         // Can be performed only by Token Operator -- Account - 9
         await autoRenewStakeAndVerify(existingStakeMapIndex, accounts[5], approvedAmount, accounts[9]);
+
+        // Additional Staking from the Same Staker
+        await submitStakeAndVerify(stakeAmount_a5, autoRenewalYes, accounts[5]);
+
+        await sleep(await waitTimeInSlot("OPEN_FOR_APPROVAL")); // Sleep to elapse the Submission time
+
+        await approveStakeAndVerify(accounts[5], stakeAmount_a5, accounts[9]);
 
         // End Stake Period
         await sleep(await waitTimeInSlot("END_STAKE")); // Sleep to elapse the Stake Period

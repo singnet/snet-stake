@@ -338,8 +338,8 @@ contract TokenStake {
         uint256 rewardAmount;
         uint256 returnAmount;
 
-        rewardAmount = calculateRewardAmount(stakeMapIndex, stakeInfo.amount);
-        totalAmount = stakeInfo.amount.add(rewardAmount);
+        rewardAmount = calculateRewardAmount(stakeMapIndex, stakeInfo.approvedAmount);
+        totalAmount = stakeInfo.approvedAmount.add(rewardAmount);
 
         require(approvedAmount <= totalAmount, "Invalid approved amount");
 
@@ -368,7 +368,7 @@ contract TokenStake {
         tokenBalance = tokenBalance.sub(returnAmount);
 
         // Update the Stake Status
-        stakeInfo.amount = 0;
+        stakeInfo.amount = stakeInfo.amount.sub(stakeInfo.approvedAmount);
         stakeInfo.status = StakeStatus.Renewed;
 
         emit AutoRenewStake(currentStakeMapIndex, staker, stakeMapIndex, tokenOperator, totalAmount, approvedAmount);
@@ -385,8 +385,8 @@ contract TokenStake {
         uint256 totalAmount;
         uint256 rewardAmount;
 
-        rewardAmount = calculateRewardAmount(stakeMapIndex, stakeInfo.amount);
-        totalAmount = stakeInfo.amount.add(rewardAmount);
+        rewardAmount = calculateRewardAmount(stakeMapIndex, stakeInfo.approvedAmount);
+        totalAmount = stakeInfo.approvedAmount.add(rewardAmount);
 
         // Not able to use modifier
         require(
@@ -407,7 +407,7 @@ contract TokenStake {
         tokenBalance = tokenBalance.sub(totalAmount);
 
         // Update the Stake Status
-        stakeInfo.amount = 0;
+        stakeInfo.amount = stakeInfo.amount.sub(stakeInfo.approvedAmount);
         stakeInfo.status = StakeStatus.Renewed;
 
         emit RenewStake(currentStakeMapIndex, msg.sender, stakeMapIndex, totalAmount);
@@ -423,8 +423,6 @@ contract TokenStake {
 
     }
 
-
-    // TODO - Calculate the Reward based on approvedAmount not on the Amount
     function claimStake(uint256 stakeMapIndex) public allowClaimStake(stakeMapIndex) {
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
@@ -433,21 +431,21 @@ contract TokenStake {
         uint256 totalAmount;
         uint256 rewardAmount;
 
-        rewardAmount = calculateRewardAmount(stakeMapIndex, stakeInfo.amount);
+        rewardAmount = calculateRewardAmount(stakeMapIndex, stakeInfo.approvedAmount);
 
-        totalAmount = stakeInfo.amount.add(rewardAmount);
+        totalAmount = stakeInfo.approvedAmount.add(rewardAmount);
 
         // Update the User Balance
-        balances[msg.sender] = balances[msg.sender].sub(stakeInfo.amount);
+        balances[msg.sender] = balances[msg.sender].sub(stakeInfo.approvedAmount);
 
         // Update the Total Stake
-        totalStake = totalStake.sub(stakeInfo.amount);
+        totalStake = totalStake.sub(stakeInfo.approvedAmount);
 
         // Update the token balance
         tokenBalance = tokenBalance.sub(totalAmount);
 
         // Update the Stake Status
-        stakeInfo.amount = 0;
+        stakeInfo.amount = stakeInfo.amount.sub(stakeInfo.approvedAmount);
         stakeInfo.status = StakeStatus.Claimed;
 
         // Call the transfer function - Already handles balance check
@@ -549,7 +547,7 @@ contract TokenStake {
         // Allow withdaw not less than minStake or Full Amount
         require(
             stakeInfo.amount.sub(stakeAmount) >= stakeMap[stakeMapIndex].minStake || 
-            stakeInfo.pendingForApprovalAmount.sub(stakeAmount) == 0
+            stakeInfo.pendingForApprovalAmount == stakeAmount
         );
 
         // Update the staker balance in the staking window
