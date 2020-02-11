@@ -251,9 +251,6 @@ contract TokenStake {
 
         emit OpenForStake(nextStakeMapIndex++, msg.sender, _startPeriod, _endPeriod, _approvalEndPeriod, _windowRewardAmount);
 
-        // TODO: Do we need to allow next staking period in case if any existsing stakes waiting for approval
-        // Rejection is enabled even after the Approval Period, Works even after the pending items
-
     }
 
     function createStake(address staker, uint256 stakeAmount, bool autoRenewal, StakeStatus stakeStatus) internal returns(bool) {
@@ -426,7 +423,8 @@ contract TokenStake {
 
     }
 
-    // TODO - In case if there is no action from Token Operator, funds get stuck. Need to provide an option for withdrawal
+
+    // TODO - Calculate the Reward based on approvedAmount not on the Amount
     function claimStake(uint256 stakeMapIndex) public allowClaimStake(stakeMapIndex) {
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
@@ -536,16 +534,15 @@ contract TokenStake {
     function withdrawStake(uint256 stakeMapIndex, uint256 stakeAmount) public {
 
         require(
-            now >= stakeMap[stakeMapIndex].startPeriod && 
-            now <= stakeMap[stakeMapIndex].submissionEndPeriod,
+            (now >= stakeMap[stakeMapIndex].startPeriod && now <= stakeMap[stakeMapIndex].submissionEndPeriod) ||
+            now > stakeMap[stakeMapIndex].approvalEndPeriod,
             "Stake withdraw at this point is not allowed"
         );
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
 
-        // Stake Request Status Should be Open OR Could be Approved In Case of Auto Renewal with Additional Submission
-        require((stakeInfo.status == StakeStatus.Open || stakeInfo.status == StakeStatus.Approved) && 
-        stakeInfo.pendingForApprovalAmount > 0 &&
+        // In Any State User can withdraw - based on time slots as above
+        require(stakeInfo.pendingForApprovalAmount > 0 &&
         stakeInfo.pendingForApprovalAmount >= stakeAmount,
         "Cannot approve beyond stake amount");
 
