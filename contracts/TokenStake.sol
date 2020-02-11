@@ -69,7 +69,7 @@ contract TokenStake {
     event OpenForStake(uint256 indexed stakeIndex, address indexed tokenOperator, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 rewardAmount);
     event SubmitStake(uint256 indexed stakeIndex, address indexed staker, uint256 stakeAmount, bool autoRenewal);
     event RequestForWithdrawal(uint256 indexed stakeIndex, address indexed staker);
-    event WithdrawStake(uint256 indexed stakeIndex, address indexed staker, uint256 rewardAmount, uint256 totalAmount);
+    event ClaimStake(uint256 indexed stakeIndex, address indexed staker, uint256 rewardAmount, uint256 totalAmount);
 
     event ApproveStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator, uint256 approvedStakeAmount);
     event RejectStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator);
@@ -129,7 +129,7 @@ contract TokenStake {
         _;
     }
 
-    modifier allowWithdrawStake(uint256 stakeMapIndex) {
+    modifier allowClaimStake(uint256 stakeMapIndex) {
         // Check to see withdraw stake is allowed
         require(
             now > stakeMap[stakeMapIndex].endPeriod && 
@@ -212,11 +212,8 @@ contract TokenStake {
 
     function enableOrDisableOperations(bool _stakingOperationDisabled) public onlyOperator
     {
-
         stakingOperationDisabled = _stakingOperationDisabled;
-
         emit UpdateOperations(msg.sender, _stakingOperationDisabled);
-
     }
 
 
@@ -381,7 +378,7 @@ contract TokenStake {
 
 
     // Renew stake along with reward
-    function renewStake(uint256 stakeMapIndex, bool autoRenewal) public allowSubmission allowWithdrawStake(stakeMapIndex) {
+    function renewStake(uint256 stakeMapIndex, bool autoRenewal) public allowSubmission allowClaimStake(stakeMapIndex) {
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
 
@@ -428,7 +425,7 @@ contract TokenStake {
     }
 
     // TODO - In case if there is no action from Token Operator, funds get stuck. Need to provide an option for withdrawal
-    function withdrawStake(uint256 stakeMapIndex) public allowWithdrawStake(stakeMapIndex) {
+    function claimStake(uint256 stakeMapIndex) public allowClaimStake(stakeMapIndex) {
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
 
@@ -456,7 +453,7 @@ contract TokenStake {
         // Call the transfer function - Already handles balance check
         require(token.transfer(msg.sender, totalAmount), "Unable to transfer token back to the account");
 
-        emit WithdrawStake(stakeMapIndex, msg.sender, rewardAmount, totalAmount);
+        emit ClaimStake(stakeMapIndex, msg.sender, rewardAmount, totalAmount);
 
     }
 
