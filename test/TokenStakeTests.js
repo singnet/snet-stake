@@ -193,19 +193,24 @@ contract('TokenStake', function(accounts) {
             const contract_account_bal_a = (await tokenStake.balances(staker)).toNumber();
             const contract_totalStake_a = (await tokenStake.totalStake.call()).toNumber();
 
+            const returnAmount = pendingForApprovalAmount_b - approvedAmount;
+
             // Stake Request should be approved
             assert.equal(status_a.toNumber(), 1); // 1-> Approved
 
             // Approved Amount should be updated
             assert.equal(approvedAmount_a.toNumber(), approvedAmount_b.toNumber() + approvedAmount);
-            assert.equal(approvedAmount, amount_a.toNumber());
+            assert.equal(amount_a.toNumber(), amount_b.toNumber() - returnAmount);
             assert.equal(pendingForApprovalAmount_a.toNumber(), 0);
 
+            // User Wallet should increase
+            assert.equal(wallet_bal_a, wallet_bal_b + returnAmount)
+
             // Account balance in the contract should reduce if approved amount < staked amount
-            assert.equal(contract_account_bal_a, contract_account_bal_b - stakedAmount_a.toNumber() + approvedAmount_a.toNumber());
+            assert.equal(contract_account_bal_a, contract_account_bal_b - returnAmount);
 
             // Total Stake in the contract should reduce if approved amount < staked amount
-            assert.equal(contract_totalStake_a, contract_totalStake_b - stakedAmount_a.toNumber() + approvedAmount_a.toNumber());
+            assert.equal(contract_totalStake_a, contract_totalStake_b - returnAmount);
             
             //Overall token balance in the contract should increase
             assert.equal(contract_tokenBalance_a, contract_tokenBalance_b + approvedAmount);
@@ -555,6 +560,56 @@ contract('TokenStake', function(accounts) {
 
         }
 
+        const withdrawStakeAndVerify = async (existingStakeMapIndex, _stakeAmount, _account) => {
+
+            const wallet_bal_b = (await token.balanceOf(_account)).toNumber();
+            const contract_account_bal_b = (await tokenStake.balances(_account)).toNumber();
+            const contract_totalStake_b = (await tokenStake.totalStake.call()).toNumber();
+            const contract_tokenBalance_b = (await tokenStake.tokenBalance.call()).toNumber();
+            
+            const [found_b, amount_b, stakedAmount_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b, status_b, stakeIndex_b]
+            = await tokenStake.getStakeInfo.call(existingStakeMapIndex, _account);
+            
+            const [startPeriod_b, submissionEndPeriod_b, approvalEndPeriod_b, requestWithdrawStartPeriod_b, endPeriod_b, minStake_b, maxStake_b, windowMaxCap_b, openForExternal_b, windowTotalStake_b, windowRewardAmount_b, stakeHolders_b]
+            = await tokenStake.stakeMap.call(existingStakeMapIndex);            
+            
+            // Withdraw the Stake
+            await tokenStake.withdrawStake(existingStakeMapIndex, _stakeAmount, {from:_account});
+            
+            const [found_a, amount_a, stakedAmount_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a, status_a, stakeIndex_a]
+            = await tokenStake.getStakeInfo.call(existingStakeMapIndex, _account);
+            
+            const [startPeriod_a, submissionEndPeriod_a, approvalEndPeriod_a, requestWithdrawStartPeriod_a, endPeriod_a, minStake_a, maxStake_a, windowMaxCap_a, openForExternal_a, windowTotalStake_a, windowRewardAmount_a, stakeHolders_a]
+            = await tokenStake.stakeMap.call(existingStakeMapIndex);
+            
+            const wallet_bal_a = (await token.balanceOf(_account)).toNumber();
+            const contract_account_bal_a = (await tokenStake.balances(_account)).toNumber();
+            const contract_totalStake_a = (await tokenStake.totalStake.call()).toNumber();
+            const contract_tokenBalance_a = (await tokenStake.tokenBalance.call()).toNumber();
+
+            // Stake Request Status Should be the same
+            assert.equal(status_a.toNumber(), status_b.toNumber());
+
+            // Stake Amount should be reset to zero
+            assert.equal(amount_a.toNumber(), amount_b.toNumber() - _stakeAmount);
+            assert.equal(pendingForApprovalAmount_a.toNumber(), pendingForApprovalAmount_b.toNumber() - _stakeAmount);
+            assert.equal(approvedAmount_a.toNumber(), approvedAmount_b.toNumber());
+
+            // Token Balance in the wallet should increase
+            assert.equal(wallet_bal_a, wallet_bal_b + _stakeAmount);
+
+            // Total Stake in the contract should reduce
+            assert.equal(contract_totalStake_a, contract_totalStake_b - _stakeAmount);
+
+            // Token Balance in the contract should reduce
+            assert.equal(contract_account_bal_a, contract_account_bal_b - _stakeAmount);
+
+            // There should not be any change overall token balance in the contract
+            assert.equal(contract_tokenBalance_a, contract_tokenBalance_b);
+
+
+        }
+
         const enableOrDisableOperationsAndVerify = async(_disableOperations, _account) => {
 
 
@@ -708,7 +763,17 @@ contract('TokenStake', function(accounts) {
         await submitStakeAndVerify(stakeAmount_a5, autoRenewalNo, accounts[5]);
 
         // 2nd Submit Stake in the same period
-        await submitStakeAndVerify(10, autoRenewalYes, accounts[3]);
+        await submitStakeAndVerify(10 * 100000000, autoRenewalYes, accounts[3]);
+
+        // Withdraw Stake Before Approval
+        await withdrawStakeAndVerify(currentStakeMapIndex, 5 * 100000000, accounts[3]);
+
+        // Withdraw Stake Before Approval
+        await withdrawStakeAndVerify(currentStakeMapIndex, stakeAmount_a5, accounts[5]);
+
+        // Re-Submit the Stake
+        await submitStakeAndVerify(stakeAmount_a5, autoRenewalNo, accounts[5]);
+
 
         // Try approve during submission phase - Should Fail
         await testErrorRevert(tokenStake.approveStake(accounts[1], stakeAmount_a1, {from:accounts[9]}));
@@ -729,10 +794,9 @@ contract('TokenStake', function(accounts) {
         await rejectStakeAndVerify(currentStakeMapIndex, accounts[2], accounts[9]);
         await rejectStakeAndVerify(currentStakeMapIndex, accounts[4], accounts[9]);
 
-        // request For Withdrawal.
-
         await sleep(await waitTimeInSlot("OPEN_OPT_UPDATE")); // Sleep to get request for Withdrawal
 
+        // request For Claim
         await requestForClaimAndVerify(currentStakeMapIndex, accounts[3]);
 
         // End Stake Period
@@ -742,7 +806,7 @@ contract('TokenStake', function(accounts) {
         await testErrorRevert(tokenStake.submitStake( stakeAmount_a5, autoRenewalYes, {from:accounts[5]}));
     });
 
-    it("5. Stake Operations - Withdraw Stake", async function() 
+    it("5. Stake Operations - Claim Stake", async function() 
     {
 
         // Get the Current Staking Period Index - Should be the first one
@@ -766,7 +830,7 @@ contract('TokenStake', function(accounts) {
 
     });
 
-    it("6. Stake Pool Operations - Deposit & Withdraw Stake by Token Operator", async function() 
+    it("6. Stake Pool Operations - Deposit & Withdraw Token from pool by Token Operator", async function() 
     {
 
         const contract_tokenBalance = (await tokenStake.tokenBalance.call()).toNumber();

@@ -79,7 +79,6 @@ contract TokenStake {
 
     event WithdrawStake(uint256 indexed stakeMapIndex, address indexed staker, uint256 stakeAmount);
 
-
     // Modifiers
     modifier onlyOwner() {
         require(
@@ -262,7 +261,7 @@ contract TokenStake {
         StakeInfo memory req;
 
         // Check if the user already staked in the current staking period
-        if(stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].amount > 0) {
+        if(stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].stakedAmount > 0) {
 
             stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].amount = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].amount.add(stakeAmount);
             stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].stakedAmount = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].stakedAmount.add(stakeAmount);
@@ -539,7 +538,7 @@ contract TokenStake {
         require(
             now >= stakeMap[stakeMapIndex].startPeriod && 
             now <= stakeMap[stakeMapIndex].submissionEndPeriod,
-            "Staking withdraw at this point is not allowed"
+            "Stake withdraw at this point is not allowed"
         );
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
