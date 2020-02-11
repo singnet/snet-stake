@@ -547,7 +547,7 @@ contract TokenStake {
         // Allow withdaw not less than minStake or Full Amount
         require(
             stakeInfo.amount.sub(stakeAmount) >= stakeMap[stakeMapIndex].minStake || 
-            stakeInfo.pendingForApprovalAmount.sub(stakeAmount) == 0
+            stakeInfo.pendingForApprovalAmount == stakeAmount
         );
 
         // Update the staker balance in the staking window
