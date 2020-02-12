@@ -255,23 +255,25 @@ contract TokenStake {
 
     function createStake(address staker, uint256 stakeAmount, bool autoRenewal, StakeStatus stakeStatus) internal returns(bool) {
 
-        StakeInfo memory req;
+        StakeInfo storage stakeInfo = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker];
 
         // Check if the user already staked in the current staking period
-        if(stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].stakedAmount > 0) {
+        if(stakeInfo.stakedAmount > 0) {
 
-            stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].amount = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].amount.add(stakeAmount);
-            stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].stakedAmount = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].stakedAmount.add(stakeAmount);
+            stakeInfo.amount = stakeInfo.amount.add(stakeAmount);
+            stakeInfo.stakedAmount = stakeInfo.stakedAmount.add(stakeAmount);
 
             if(stakeStatus == StakeStatus.Open) {
-                stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].pendingForApprovalAmount = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].pendingForApprovalAmount.add(stakeAmount);
+                stakeInfo.pendingForApprovalAmount = stakeInfo.pendingForApprovalAmount.add(stakeAmount);
             } else if (stakeStatus == StakeStatus.Approved) {
-                stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].approvedAmount = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].approvedAmount.add(stakeAmount);
+                stakeInfo.approvedAmount = stakeInfo.approvedAmount.add(stakeAmount);
             }
 
-            stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].autoRenewal = autoRenewal;
+            stakeInfo.autoRenewal = autoRenewal;
 
         } else {
+
+            StakeInfo memory req;
 
             // Create a new stake request
             req.amount = stakeAmount;
