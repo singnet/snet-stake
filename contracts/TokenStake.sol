@@ -77,7 +77,7 @@ contract TokenStake {
     event AutoRenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, address tokenOperator, uint256 stakeAmount, uint256 approvedAmount, uint256 returnAmount);
     event RenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, uint256 stakeAmount);
 
-    event WithdrawStake(uint256 indexed stakeMapIndex, address indexed staker, uint256 stakeAmount);
+    event WithdrawStake(uint256 indexed stakeIndex, address indexed staker, uint256 stakeAmount);
 
     // Modifiers
     modifier onlyOwner() {
