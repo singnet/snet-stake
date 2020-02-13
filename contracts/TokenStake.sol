@@ -71,10 +71,10 @@ contract TokenStake {
     event RequestForClaim(uint256 indexed stakeIndex, address indexed staker);
     event ClaimStake(uint256 indexed stakeIndex, address indexed staker, uint256 rewardAmount, uint256 totalAmount);
 
-    event ApproveStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator, uint256 approvedStakeAmount);
+    event ApproveStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator, uint256 approvedStakeAmount, uint256 returnAmount);
     event RejectStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator);
 
-    event AutoRenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, address tokenOperator, uint256 stakeAmount, uint256 approvedAmount);
+    event AutoRenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, address tokenOperator, uint256 stakeAmount, uint256 approvedAmount, uint256 returnAmount);
     event RenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, uint256 stakeAmount);
 
     event WithdrawStake(uint256 indexed stakeMapIndex, address indexed staker, uint256 stakeAmount);
@@ -373,7 +373,7 @@ contract TokenStake {
         stakeInfo.amount = stakeInfo.amount.sub(stakeInfo.approvedAmount);
         stakeInfo.status = StakeStatus.Renewed;
 
-        emit AutoRenewStake(currentStakeMapIndex, staker, stakeMapIndex, tokenOperator, totalAmount, approvedAmount);
+        emit AutoRenewStake(currentStakeMapIndex, staker, stakeMapIndex, tokenOperator, totalAmount, approvedAmount, returnAmount);
 
     }
 
@@ -498,7 +498,7 @@ contract TokenStake {
         stakeInfo.amount = stakeInfo.amount.sub(returnAmount);
         stakeInfo.approvedAmount = stakeInfo.approvedAmount.add(approvedStakeAmount);
 
-        emit ApproveStake(currentStakeMapIndex, staker, msg.sender, approvedStakeAmount);
+        emit ApproveStake(currentStakeMapIndex, staker, msg.sender, approvedStakeAmount, returnAmount);
 
     }
 
@@ -542,14 +542,15 @@ contract TokenStake {
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
 
         // In Any State User can withdraw - based on time slots as above
-        require(stakeInfo.pendingForApprovalAmount > 0 &&
+        require(stakeAmount > 0 && stakeInfo.pendingForApprovalAmount > 0 &&
         stakeInfo.pendingForApprovalAmount >= stakeAmount,
-        "Cannot approve beyond stake amount");
+        "Cannot withdraw beyond stake amount");
 
         // Allow withdaw not less than minStake or Full Amount
         require(
             stakeInfo.amount.sub(stakeAmount) >= stakeMap[stakeMapIndex].minStake || 
-            stakeInfo.pendingForApprovalAmount == stakeAmount
+            stakeInfo.pendingForApprovalAmount == stakeAmount,
+            "Can withdraw full amount or partial amount maintaining min stake"
         );
 
         // Update the staker balance in the staking window
