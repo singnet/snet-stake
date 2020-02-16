@@ -68,14 +68,14 @@ contract TokenStake {
 
     event OpenForStake(uint256 indexed stakeIndex, address indexed tokenOperator, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 rewardAmount);
     event SubmitStake(uint256 indexed stakeIndex, address indexed staker, uint256 stakeAmount, bool autoRenewal);
-    event RequestForClaim(uint256 indexed stakeIndex, address indexed staker);
+    event RequestForClaim(uint256 indexed stakeIndex, address indexed staker, bool autoRenewal);
     event ClaimStake(uint256 indexed stakeIndex, address indexed staker, uint256 rewardAmount, uint256 totalAmount);
 
     event ApproveStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator, uint256 approvedStakeAmount, uint256 returnAmount);
     event RejectStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator);
 
     event AutoRenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, address tokenOperator, uint256 stakeAmount, uint256 approvedAmount, uint256 returnAmount);
-    event RenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, uint256 stakeAmount);
+    event RenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, uint256 totalAmount, uint256 stakeAmount, uint256 returnAmount);
 
     event WithdrawStake(uint256 indexed stakeIndex, address indexed staker, uint256 stakeAmount);
 
@@ -379,7 +379,7 @@ contract TokenStake {
 
 
     // Renew stake along with reward
-    function renewStake(uint256 stakeMapIndex, bool autoRenewal) public allowSubmission allowClaimStake(stakeMapIndex) {
+    function renewStake(uint256 stakeMapIndex, uint256 stakeAmount, bool autoRenewal) public allowSubmission allowClaimStake(stakeMapIndex) {
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
 
@@ -392,18 +392,26 @@ contract TokenStake {
 
         // Not able to use modifier
         require(
-            stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount.add(totalAmount) >= stakeMap[currentStakeMapIndex].minStake &&
-            stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount.add(totalAmount) <= stakeMap[currentStakeMapIndex].maxStake , 
+            stakeAmount > 0 && stakeAmount <= totalAmount && 
+            stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount.add(stakeAmount) >= stakeMap[currentStakeMapIndex].minStake &&
+            stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].amount.add(stakeAmount) <= stakeMap[currentStakeMapIndex].maxStake , 
             "Invalid stake amount"
         );
 
-        require(createStake(msg.sender, totalAmount, autoRenewal, StakeStatus.Open));
+        require(createStake(msg.sender, stakeAmount, autoRenewal, StakeStatus.Open));
+
+        uint256 returnAmount;
+        if(stakeAmount < totalAmount) {
+            returnAmount = totalAmount.sub(stakeAmount);
+            // transfer back the remaining amount
+            require(token.transfer(msg.sender, returnAmount), "Unable to transfer token back to the account");
+        }
 
         // Update the User Balance
-        balances[msg.sender] = balances[msg.sender].add(rewardAmount);
+        balances[msg.sender] = balances[msg.sender].add(rewardAmount).sub(returnAmount);
 
         // Update the Total Stake
-        totalStake = totalStake.add(rewardAmount);
+        totalStake = totalStake.add(rewardAmount).sub(returnAmount);
 
         // Update the token balance
         tokenBalance = tokenBalance.sub(totalAmount);
@@ -412,16 +420,16 @@ contract TokenStake {
         stakeInfo.amount = stakeInfo.amount.sub(stakeInfo.approvedAmount);
         stakeInfo.status = StakeStatus.Renewed;
 
-        emit RenewStake(currentStakeMapIndex, msg.sender, stakeMapIndex, totalAmount);
+        emit RenewStake(currentStakeMapIndex, msg.sender, stakeMapIndex, totalAmount, stakeAmount, returnAmount);
 
     }
 
-    function requestForClaim(uint256 stakeMapIndex) public allowRequestForClaim(stakeMapIndex) {
+    function requestForClaim(uint256 stakeMapIndex, bool autoRenewal) public allowRequestForClaim(stakeMapIndex) {
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
-        stakeInfo.autoRenewal = false;
+        stakeInfo.autoRenewal = autoRenewal;
 
-        emit RequestForClaim(stakeMapIndex, msg.sender);
+        emit RequestForClaim(stakeMapIndex, msg.sender, autoRenewal);
 
     }
 
