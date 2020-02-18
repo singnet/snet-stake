@@ -1043,8 +1043,12 @@ contract('TokenStake', function(accounts) {
     it("11. Stake Operations - Post Disable Operations", async function() 
     {
 
-        // TODO: Staker should be able to withdraw the tokens irrespective of Auto Renewal Flag
-        // Add a Test Case
+        // Staker should be able to withdraw the tokens irrespective of Auto Renewal Flag
+        // Get the Current Staking Period Index - Should be the first one
+        const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+
+        // Account 5 is enabled for AutoRenew
+        await claimStakeAndVerify(currentStakeMapIndex, accounts[5]);
 
         // Open Stake Request should not be allowed
         // Get the start Period in Epoc Timestamp (In Secs)
