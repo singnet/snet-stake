@@ -22,13 +22,12 @@ contract TokenStake {
     enum StakeStatus { Open, Approved, Rejected, Claimed, Renewed }
 
     struct StakeInfo {
+        bool exist;
         uint256 amount;
-        uint256 stakedAmount;
         uint256 pendingForApprovalAmount;
         uint256 approvedAmount;
         bool autoRenewal;
         StakeStatus status;
-        uint256 stakeIndex;
     }
 
     // Staking period timestamp (Debatable on timestamp vs blocknumber - went with timestamp)
@@ -258,10 +257,9 @@ contract TokenStake {
         StakeInfo storage stakeInfo = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker];
 
         // Check if the user already staked in the current staking period
-        if(stakeInfo.stakedAmount > 0) {
+        if(stakeInfo.exist) {
 
             stakeInfo.amount = stakeInfo.amount.add(stakeAmount);
-            stakeInfo.stakedAmount = stakeInfo.stakedAmount.add(stakeAmount);
 
             if(stakeStatus == StakeStatus.Open) {
                 stakeInfo.pendingForApprovalAmount = stakeInfo.pendingForApprovalAmount.add(stakeAmount);
@@ -276,11 +274,10 @@ contract TokenStake {
             StakeInfo memory req;
 
             // Create a new stake request
+            req.exist = true;
             req.amount = stakeAmount;
-            req.stakedAmount = stakeAmount;
             req.autoRenewal = autoRenewal;
             req.approvedAmount = 0;
-            req.stakeIndex = stakeMap[currentStakeMapIndex].stakeHolders.length;
             req.status = stakeStatus;
 
             if(stakeStatus == StakeStatus.Open) {
@@ -590,24 +587,21 @@ contract TokenStake {
     function getStakeInfo(uint256 stakeMapIndex, address staker) 
     public 
     view
-    returns (bool found, uint256 amount, uint256 stakedAmount, uint256 pendingForApprovalAmount, uint256 approvedAmount, bool autoRenewal, StakeStatus status, uint256 stakeIndex) 
+    returns (bool found, uint256 amount, uint256 pendingForApprovalAmount, uint256 approvedAmount, bool autoRenewal, StakeStatus status) 
     {
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
         
         found = false;
-        if(stakeInfo.stakedAmount > 0 ) {
+        if(stakeInfo.exist) {
             found = true;
         }
 
         amount = stakeInfo.amount;
-        stakedAmount = stakeInfo.stakedAmount;
         pendingForApprovalAmount = stakeInfo.pendingForApprovalAmount;
         approvedAmount = stakeInfo.approvedAmount;
         autoRenewal = stakeInfo.autoRenewal;
         status = stakeInfo.status;
-        stakeIndex = stakeInfo.stakeIndex;
-
     }
 
 }
