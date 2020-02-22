@@ -18,15 +18,11 @@ contract TokenStake {
     uint256 public currentStakeMapIndex;
     bool public stakingOperationDisabled;
 
-    // 0-Open, 1-Approved, 2-Rejected, 3-Claimed
-    enum StakeStatus { Open, Approved, Rejected, Claimed, Renewed }
-
     struct StakeInfo {
         bool exist;
         uint256 pendingForApprovalAmount;
         uint256 approvedAmount;
         bool autoRenewal;
-        StakeStatus status;
     }
 
     // Staking period timestamp (Debatable on timestamp vs blocknumber - went with timestamp)
@@ -70,7 +66,7 @@ contract TokenStake {
     event ClaimStake(uint256 indexed stakeIndex, address indexed staker, uint256 rewardAmount, uint256 totalAmount);
 
     event ApproveStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator, uint256 approvedStakeAmount, uint256 returnAmount);
-    event RejectStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator);
+    event RejectStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator, uint256 returnAmount);
 
     event AutoRenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, address tokenOperator, uint256 stakeAmount, uint256 approvedAmount, uint256 returnAmount);
     event RenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, uint256 totalAmount, uint256 stakeAmount, uint256 returnAmount);
@@ -93,9 +89,8 @@ contract TokenStake {
         _;
     }
 
-    // Request for Stake should be Open
-    modifier allowSubmission() {
-        
+    // Token Operator should be able to do auto renewal
+    modifier allowSubmission() {        
         require(
             stakingOperationDisabled == false && 
             now >= stakeMap[currentStakeMapIndex].startPeriod && 
@@ -127,7 +122,6 @@ contract TokenStake {
         // Check to see request for withdraw stake is allowed
         require(
             stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].approvedAmount > 0 && 
-            stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].status == StakeStatus.Approved && 
             now >= stakeMap[currentStakeMapIndex].requestWithdrawStartPeriod &&
             now <= stakeMap[currentStakeMapIndex].endPeriod, 
             "Request for withdrawal at this point not allowed"
@@ -140,7 +134,6 @@ contract TokenStake {
         require(
             now > stakeMap[stakeMapIndex].endPeriod && 
             stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].approvedAmount > 0 && 
-            stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].status == StakeStatus.Approved &&
             (stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].autoRenewal == false || stakingOperationDisabled == true) , 
             "Invalid withdraw request"
         );
@@ -153,7 +146,6 @@ contract TokenStake {
         require(
             now > stakeMap[stakeMapIndex].endPeriod && 
             stakeMap[stakeMapIndex].stakeHolderInfo[staker].approvedAmount > 0 && 
-            stakeMap[stakeMapIndex].stakeHolderInfo[staker].status == StakeStatus.Approved &&
             stakeMap[stakeMapIndex].stakeHolderInfo[staker].autoRenewal == true, 
             "Invalid renewal request"
         );
@@ -257,19 +249,18 @@ contract TokenStake {
 
     }
 
-    function createStake(address staker, uint256 stakeAmount, bool autoRenewal, StakeStatus stakeStatus) internal returns(bool) {
+    function createStake(address staker, uint256 stakeAmount, bool autoRenewal, bool isAutoRenewal) internal returns(bool) {
 
         StakeInfo storage stakeInfo = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker];
 
         // Check if the user already staked in the current staking period
         if(stakeInfo.exist) {
 
-            if(stakeStatus == StakeStatus.Open) {
-                stakeInfo.pendingForApprovalAmount = stakeInfo.pendingForApprovalAmount.add(stakeAmount);
-            } else if (stakeStatus == StakeStatus.Approved) {
+            if(isAutoRenewal) {
                 stakeInfo.approvedAmount = stakeInfo.approvedAmount.add(stakeAmount);
+            } else {
+                stakeInfo.pendingForApprovalAmount = stakeInfo.pendingForApprovalAmount.add(stakeAmount);
             }
-
             stakeInfo.autoRenewal = autoRenewal;
 
         } else {
@@ -280,12 +271,11 @@ contract TokenStake {
             req.exist = true;
             req.autoRenewal = autoRenewal;
             req.approvedAmount = 0;
-            req.status = stakeStatus;
 
-            if(stakeStatus == StakeStatus.Open) {
-                req.pendingForApprovalAmount = stakeAmount;
-            } else if (stakeStatus == StakeStatus.Approved) {
+            if(isAutoRenewal) {
                 req.approvedAmount = stakeAmount;
+            } else {
+                req.pendingForApprovalAmount = stakeAmount;
             }
 
             stakeMap[currentStakeMapIndex].stakeHolderInfo[staker] = req;
@@ -305,7 +295,7 @@ contract TokenStake {
         // Transfer the Tokens to Contract
         require(token.transferFrom(msg.sender, this, stakeAmount), "Unable to transfer token to the contract");
 
-        require(createStake(msg.sender, stakeAmount, autoRenewal, StakeStatus.Open));
+        require(createStake(msg.sender, stakeAmount, autoRenewal, false));
 
         // Update the User balance
         balances[msg.sender] = balances[msg.sender].add(stakeAmount);
@@ -332,20 +322,20 @@ contract TokenStake {
 
     function autoRenewStake(uint256 stakeMapIndex, address staker, uint256 approvedAmount) public onlyOperator allowSubmission allowAutoRenewStake(stakeMapIndex, staker) {
 
-        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
+        StakeInfo storage oldStakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
 
         // Calculate the totalAmount
         uint256 totalAmount;
         uint256 rewardAmount;
         uint256 returnAmount;
 
-        rewardAmount = calculateRewardAmount(stakeMapIndex, stakeInfo.approvedAmount);
-        totalAmount = stakeInfo.approvedAmount.add(rewardAmount);
+        rewardAmount = calculateRewardAmount(stakeMapIndex, oldStakeInfo.approvedAmount);
+        totalAmount = oldStakeInfo.approvedAmount.add(rewardAmount);
 
         require(approvedAmount <= totalAmount, "Invalid approved amount");
 
         // Create a new stake in current staking period
-        require(createStake(staker, approvedAmount, stakeInfo.autoRenewal, StakeStatus.Approved));
+        require(createStake(staker, approvedAmount, oldStakeInfo.autoRenewal, true));
 
         if(approvedAmount < totalAmount) {
 
@@ -368,9 +358,8 @@ contract TokenStake {
         // Update the token balance
         totalApprovedStake = totalApprovedStake.sub(returnAmount);
 
-        // Update the Stake Status
-        stakeInfo.approvedAmount = 0;
-        stakeInfo.status = StakeStatus.Renewed;
+        // Update the existsing Approved Amount
+        oldStakeInfo.approvedAmount = 0;
 
         emit AutoRenewStake(currentStakeMapIndex, staker, stakeMapIndex, tokenOperator, totalAmount, approvedAmount, returnAmount);
 
@@ -380,14 +369,14 @@ contract TokenStake {
     // Renew stake along with reward
     function renewStake(uint256 stakeMapIndex, uint256 stakeAmount, bool autoRenewal) public allowSubmission allowClaimStake(stakeMapIndex) {
 
-        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
+        StakeInfo storage oldStakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
 
         // Calculate the totalAmount
         uint256 totalAmount;
         uint256 rewardAmount;
 
-        rewardAmount = calculateRewardAmount(stakeMapIndex, stakeInfo.approvedAmount);
-        totalAmount = stakeInfo.approvedAmount.add(rewardAmount);
+        rewardAmount = calculateRewardAmount(stakeMapIndex, oldStakeInfo.approvedAmount);
+        totalAmount = oldStakeInfo.approvedAmount.add(rewardAmount);
 
         uint256 stakerTotalStake;
         stakerTotalStake = stakeAmount.add(stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].pendingForApprovalAmount);
@@ -401,7 +390,7 @@ contract TokenStake {
             "Invalid stake amount"
         );
 
-        require(createStake(msg.sender, stakeAmount, autoRenewal, StakeStatus.Open));
+        require(createStake(msg.sender, stakeAmount, autoRenewal, false));
 
         uint256 returnAmount;
         if(stakeAmount < totalAmount) {
@@ -419,9 +408,8 @@ contract TokenStake {
         // Update the token balance
         totalApprovedStake = totalApprovedStake.sub(totalAmount);
 
-        // Update the Stake Status
-        stakeInfo.approvedAmount = 0;
-        stakeInfo.status = StakeStatus.Renewed;
+        // Update the existing Stake Approved Amount
+        oldStakeInfo.approvedAmount = 0;
 
         emit RenewStake(currentStakeMapIndex, msg.sender, stakeMapIndex, totalAmount, stakeAmount, returnAmount);
 
@@ -457,9 +445,8 @@ contract TokenStake {
         // Update the token balance
         totalApprovedStake = totalApprovedStake.sub(totalAmount);
 
-        // Update the Stake Status
+        // Update the existing Stake Approved Amount
         stakeInfo.approvedAmount = 0;
-        stakeInfo.status = StakeStatus.Claimed;
 
         // Call the transfer function - Already handles balance check
         require(token.transfer(msg.sender, totalAmount), "Unable to transfer token back to the account");
@@ -468,31 +455,29 @@ contract TokenStake {
 
     }
 
-    function approveStake(address staker, uint256 approvedStakeAmount) public onlyOperator {
+    function approveStake(address staker, uint256 approvedAmount) public onlyOperator {
 
-        // Request for Stake should be Open
+        // Request for Stake should be in Approval phase
         require(now > stakeMap[currentStakeMapIndex].submissionEndPeriod && now <= stakeMap[currentStakeMapIndex].approvalEndPeriod, "Approval at this point not allowed");
 
         // Input Validation
-        require(approvedStakeAmount > 0, "Invalid approved amount");
+        require(approvedAmount > 0, "Invalid approved amount");
 
         StakeInfo storage stakeInfo = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker];
 
-        // Stake Request Status Should be Open
-        // Stake Request Status Could be Approved In Case of Auto Renewal with Additional Submission
-        require((stakeInfo.status == StakeStatus.Open || stakeInfo.status == StakeStatus.Approved) && stakeInfo.pendingForApprovalAmount > 0 && stakeInfo.pendingForApprovalAmount >= approvedStakeAmount, "Cannot approve beyond stake amount");
+        require(stakeInfo.pendingForApprovalAmount > 0 && stakeInfo.pendingForApprovalAmount >= approvedAmount, "Cannot approve beyond stake amount");
 
         uint256 returnAmount;
 
-        if(approvedStakeAmount < stakeInfo.pendingForApprovalAmount) {
-            returnAmount = stakeInfo.pendingForApprovalAmount.sub(approvedStakeAmount);
+        if(approvedAmount < stakeInfo.pendingForApprovalAmount) {
+            returnAmount = stakeInfo.pendingForApprovalAmount.sub(approvedAmount);
 
             // transfer back the remaining amount
             require(token.transfer(staker, returnAmount), "Unable to transfer token back to the account");
         }
 
         // Update current stake period total stake
-        stakeMap[currentStakeMapIndex].windowTotalStake = stakeMap[currentStakeMapIndex].windowTotalStake.add(approvedStakeAmount);
+        stakeMap[currentStakeMapIndex].windowTotalStake = stakeMap[currentStakeMapIndex].windowTotalStake.add(approvedAmount);
 
         // Update the User Balance
         balances[staker] = balances[staker].sub(returnAmount);
@@ -501,26 +486,28 @@ contract TokenStake {
         totalStake = totalStake.sub(returnAmount);
         
         // Update the token balance
-        totalApprovedStake = totalApprovedStake.add(approvedStakeAmount);
+        totalApprovedStake = totalApprovedStake.add(approvedAmount);
 
         // Update the Stake Request
-        stakeInfo.status = StakeStatus.Approved;
         stakeInfo.pendingForApprovalAmount = 0;
-        stakeInfo.approvedAmount = stakeInfo.approvedAmount.add(approvedStakeAmount);
+        stakeInfo.approvedAmount = stakeInfo.approvedAmount.add(approvedAmount);
 
-        emit ApproveStake(currentStakeMapIndex, staker, msg.sender, approvedStakeAmount, returnAmount);
+        emit ApproveStake(currentStakeMapIndex, staker, msg.sender, approvedAmount, returnAmount);
 
     }
 
     function rejectStake(uint256 stakeMapIndex, address staker) public onlyOperator {
 
-        // Request for Stake should be Open - Allow for rejection after approval period as well
-        require(now > stakeMap[stakeMapIndex].submissionEndPeriod, "Rejection at this point not allowed");
+        // Allow for rejection after approval period as well
+        require(now > stakeMap[stakeMapIndex].submissionEndPeriod, "Rejection at this point is not allowed");
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
 
         // In case of if there are auto renewals reject should not be allowed
-        require(stakeInfo.pendingForApprovalAmount > 0 && stakeInfo.approvedAmount == 0 && stakeInfo.status == StakeStatus.Open , "No staking request found");
+        require(stakeInfo.pendingForApprovalAmount > 0, "No staking request found");
+
+        uint256 returnAmount;
+        returnAmount = stakeInfo.pendingForApprovalAmount;
 
         // transfer back the stake to user account
         require(token.transfer(staker, stakeInfo.pendingForApprovalAmount), "Unable to transfer token back to the account");
@@ -531,11 +518,10 @@ contract TokenStake {
         // Update the Total Stake
         totalStake = totalStake.sub(stakeInfo.pendingForApprovalAmount);
 
-        // Update the Status & Amount
+        // Update the Pending Amount
         stakeInfo.pendingForApprovalAmount = 0;
-        stakeInfo.status = StakeStatus.Rejected;
 
-        emit RejectStake(stakeMapIndex, staker, msg.sender);
+        emit RejectStake(stakeMapIndex, staker, msg.sender, returnAmount);
 
     }
 
@@ -590,7 +576,7 @@ contract TokenStake {
     function getStakeInfo(uint256 stakeMapIndex, address staker) 
     public 
     view
-    returns (bool found, uint256 pendingForApprovalAmount, uint256 approvedAmount, bool autoRenewal, StakeStatus status) 
+    returns (bool found, uint256 pendingForApprovalAmount, uint256 approvedAmount, bool autoRenewal) 
     {
 
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
@@ -603,7 +589,6 @@ contract TokenStake {
         pendingForApprovalAmount = stakeInfo.pendingForApprovalAmount;
         approvedAmount = stakeInfo.approvedAmount;
         autoRenewal = stakeInfo.autoRenewal;
-        status = stakeInfo.status;
     }
 
 }

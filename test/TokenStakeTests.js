@@ -83,7 +83,7 @@ contract('TokenStake', function(accounts) {
             const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
             const nextStakePeriodIndex_a = (await tokenStake.nextStakeMapIndex.call()).toNumber();
 
-            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a, status_a]
+            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a]
             = await tokenStake.getStakeInfo.call(currentStakeMapIndex, "0x0");
 
             const [startPeriod_a, submissionEndPeriod_a, approvalEndPeriod_a, requestWithdrawStartPeriod_a, endPeriod_a, minStake_a, maxStake_a, windowMaxCap_a, openForExternal_a, windowTotalStake_a, windowRewardAmount_a, stakeHolders_a]
@@ -117,7 +117,7 @@ contract('TokenStake', function(accounts) {
             const contract_totalStake_b = (await tokenStake.totalStake.call()).toNumber();
             const totalApprovedStake_b = (await tokenStake.totalApprovedStake.call()).toNumber();
 
-            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b, status_b]
+            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b]
             = await tokenStake.getStakeInfo.call(currentStakeMapIndex, _account);
 
             const [startPeriod_b, submissionEndPeriod_b, approvalEndPeriod_b, requestWithdrawStartPeriod_b, endPeriod_b, minStake_b, maxStake_b, windowMaxCap_b, openForExternal_b, windowTotalStake_b, windowRewardAmount_b, stakeHolders_b]
@@ -126,7 +126,7 @@ contract('TokenStake', function(accounts) {
             // Submit the Stake
             await tokenStake.submitStake( _stakeAmount, _autoRenewal, {from:_account});
 
-            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a, status_a]
+            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a]
             = await tokenStake.getStakeInfo.call(currentStakeMapIndex, _account);
 
             const [startPeriod_a, submissionEndPeriod_a, approvalEndPeriod_a, requestWithdrawStartPeriod_a, endPeriod_a, minStake_a, maxStake_a, windowMaxCap_a, openForExternal_a, windowTotalStake_a, windowRewardAmount_a, stakeHolders_a]
@@ -168,7 +168,7 @@ contract('TokenStake', function(accounts) {
             const contract_account_bal_b = (await tokenStake.balances(staker)).toNumber();
             const contract_totalStake_b = (await tokenStake.totalStake.call()).toNumber();
             
-            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b, status_b]
+            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b]
             = await tokenStake.getStakeInfo.call(currentStakeMapIndex, staker);
 
             const [startPeriod_b, submissionEndPeriod_b, approvalEndPeriod_b, requestWithdrawStartPeriod_b, endPeriod_b, minStake_b, maxStake_b, windowMaxCap_b, openForExternal_b, windowTotalStake_b, windowRewardAmount_b, stakeHolders_b]
@@ -176,7 +176,7 @@ contract('TokenStake', function(accounts) {
 
             await tokenStake.approveStake(staker, approvedAmount, {from:_account});
 
-            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a, status_a]
+            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a]
             = await tokenStake.getStakeInfo.call(currentStakeMapIndex, staker);
 
             const [startPeriod_a, submissionEndPeriod_a, approvalEndPeriod_a, requestWithdrawStartPeriod_a, endPeriod_a, minStake_a, maxStake_a, windowMaxCap_a, openForExternal_a, windowTotalStake_a, windowRewardAmount_a, stakeHolders_a]
@@ -191,9 +191,6 @@ contract('TokenStake', function(accounts) {
             const contract_totalStake_a = (await tokenStake.totalStake.call()).toNumber();
 
             const returnAmount = pendingForApprovalAmount_b - approvedAmount;
-
-            // Stake Request should be approved
-            assert.equal(status_a.toNumber(), 1); // 1-> Approved
 
             // Approved Amount should be updated
             assert.equal(approvedAmount_a.toNumber(), approvedAmount_b.toNumber() + approvedAmount);
@@ -225,7 +222,7 @@ contract('TokenStake', function(accounts) {
             const totalApprovedStake_b = (await tokenStake.totalApprovedStake.call()).toNumber();
             const contract_account_bal_b = (await tokenStake.balances(staker)).toNumber();
 
-            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b, status_b]
+            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b]
             = await tokenStake.getStakeInfo.call(_stakeMapIndex, staker);
 
             const [startPeriod_b, submissionEndPeriod_b, approvalEndPeriod_b, requestWithdrawStartPeriod_b, endPeriod_b, minStake_b, maxStake_b, windowMaxCap_b, openForExternal_b, windowTotalStake_b, windowRewardAmount_b, stakeHolders_b]
@@ -234,7 +231,7 @@ contract('TokenStake', function(accounts) {
             // Call Reject Stake Request
             await tokenStake.rejectStake(_stakeMapIndex, staker, {from:_account});
 
-            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a, status_a]
+            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a]
             = await tokenStake.getStakeInfo.call(_stakeMapIndex, staker);
 
             const [startPeriod_a, submissionEndPeriod_a, approvalEndPeriod_a, requestWithdrawStartPeriod_a, endPeriod_a, minStake_a, maxStake_a, windowMaxCap_a, openForExternal_a, windowTotalStake_a, windowRewardAmount_a, stakeHolders_a]
@@ -246,9 +243,6 @@ contract('TokenStake', function(accounts) {
             // Contract Stake Balance
             const totalApprovedStake_a = (await tokenStake.totalApprovedStake.call()).toNumber();
             const contract_account_bal_a = (await tokenStake.balances(staker)).toNumber();
-
-            // Stake Request should be rejected
-            assert.equal(status_a.toNumber(), 2); // 2-> Rejected
 
             // Stake Amount should be reset to zero
             assert.equal(pendingForApprovalAmount_a.toNumber(), 0);
@@ -269,7 +263,7 @@ contract('TokenStake', function(accounts) {
             // Call request for Withdraw Stake
             await tokenStake.updateAutoRenewal(_stakeMapIndex, _autoRenew, {from:_account});
 
-            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a, status_a]
+            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a]
             = await tokenStake.getStakeInfo.call(_stakeMapIndex, _account);
 
             assert.equal(autoRenewal_a, _autoRenew);
@@ -286,7 +280,7 @@ contract('TokenStake', function(accounts) {
             const contract_account_bal_b = (await tokenStake.balances(_account)).toNumber();
             const contract_totalStake_b = (await tokenStake.totalStake.call()).toNumber();
 
-            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b, status_b]
+            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b]
             = await tokenStake.getStakeInfo.call(_stakeMapIndex, _account);
 
             const [startPeriod_b, submissionEndPeriod_b, approvalEndPeriod_b, requestWithdrawStartPeriod_b, endPeriod_b, minStake_b, maxStake_b, windowMaxCap_b, openForExternal_b, windowTotalStake_b, windowRewardAmount_b, stakeHolders_b]
@@ -301,7 +295,7 @@ contract('TokenStake', function(accounts) {
             // Call Withdraw Stake
             await tokenStake.claimStake(_stakeMapIndex, {from:_account});
 
-            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a, status_a]
+            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a]
             = await tokenStake.getStakeInfo.call(_stakeMapIndex, _account);
 
             // Token Balance
@@ -323,9 +317,8 @@ contract('TokenStake', function(accounts) {
             assert.equal(totalApprovedStake_b, totalApprovedStake_a + approvedAmount_b.toNumber() + rewardAmount);
             assert.equal(contract_totalStake_b, contract_totalStake_a + approvedAmount_b.toNumber());
 
-            // Amount in the respective staking period should reset to zero and Status to Claimed
+            // Amount in the respective staking period should reset to zero
             assert.equal(approvedAmount_a.toNumber(), 0);
-            assert.equal(status_a.toNumber(), 3); // 3->Claimed
 
         }
 
@@ -402,13 +395,13 @@ contract('TokenStake', function(accounts) {
             const totalApprovedStake_b = (await tokenStake.totalApprovedStake.call()).toNumber();
 
             // Existing Stake
-            const [found_eb, pendingForApprovalAmount_eb, approvedAmount_eb, autoRenewal_eb, status_eb]
+            const [found_eb, pendingForApprovalAmount_eb, approvedAmount_eb, autoRenewal_eb]
             = await tokenStake.getStakeInfo.call(existingStakeMapIndex, _staker);
 
             const [startPeriod_eb, submissionEndPeriod_eb, approvalEndPeriod_eb, requestWithdrawStartPeriod_eb, endPeriod_eb, minStake_eb, maxStake_eb, windowMaxCap_eb, openForExternal_eb, windowTotalStake_eb, windowRewardAmount_eb, stakeHolders_eb]
             = await tokenStake.stakeMap.call(existingStakeMapIndex);
 
-            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b, status_b]
+            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b]
             = await tokenStake.getStakeInfo.call(currentStakeMapIndex, _staker);
 
             const [startPeriod_b, submissionEndPeriod_b, approvalEndPeriod_b, requestWithdrawStartPeriod_b, endPeriod_b, minStake_b, maxStake_b, windowMaxCap_b, openForExternal_b, windowTotalStake_b, windowRewardAmount_b, stakeHolders_b]
@@ -424,11 +417,11 @@ contract('TokenStake', function(accounts) {
             await tokenStake.autoRenewStake(existingStakeMapIndex, _staker, _approvedAmount, {from:_account});
 
             // Existing Stake
-            const [found_ea, pendingForApprovalAmount_ea, approvedAmount_ea, autoRenewal_ea, status_ea]
+            const [found_ea, pendingForApprovalAmount_ea, approvedAmount_ea, autoRenewal_ea]
             = await tokenStake.getStakeInfo.call(existingStakeMapIndex, _staker);
 
             // Current Stake
-            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a, status_a]
+            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a]
             = await tokenStake.getStakeInfo.call(currentStakeMapIndex, _staker);
 
             // Staking Window
@@ -449,13 +442,8 @@ contract('TokenStake', function(accounts) {
             // Wallet should 
             assert.equal(wallet_bal_b, wallet_bal_a - returnAmount);
 
-            // Previous Stake Amount Should be set to Zero & Status to Renewed
+            // Previous Stake Amount Should be set to Zero
             assert.equal(approvedAmount_ea.toNumber(), 0);
-            assert.equal(status_ea.toNumber(), 4); // 4 -> Renewed
-
-            // New Stake Should be Approved
-            // TODO: Need to check in case if there any stake submission happens before auto renewal
-            assert.equal(status_a.toNumber(), 1); // 1 -> Approved -- Approved automatically for Auto Renewal Option
 
             // New Stake Should be Auto Renewed
             assert.equal(autoRenewal_a, true);
@@ -491,13 +479,13 @@ contract('TokenStake', function(accounts) {
             const totalApprovedStake_b = (await tokenStake.totalApprovedStake.call()).toNumber();
 
             // Existing Stake
-            const [found_eb, pendingForApprovalAmount_eb, approvedAmount_eb, autoRenewal_eb, status_eb]
+            const [found_eb, pendingForApprovalAmount_eb, approvedAmount_eb, autoRenewal_eb]
             = await tokenStake.getStakeInfo.call(existingStakeMapIndex, _account);
 
             const [startPeriod_eb, submissionEndPeriod_eb, approvalEndPeriod_eb, requestWithdrawStartPeriod_eb, endPeriod_eb, minStake_eb, maxStake_eb, windowMaxCap_eb, openForExternal_eb, windowTotalStake_eb, windowRewardAmount_eb, stakeHolders_eb]
             = await tokenStake.stakeMap.call(existingStakeMapIndex);
 
-            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b, status_b]
+            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b]
             = await tokenStake.getStakeInfo.call(currentStakeMapIndex, _account);
 
 // console.log("totalApprovedStake_b - ", totalApprovedStake_b);
@@ -510,11 +498,11 @@ contract('TokenStake', function(accounts) {
             await tokenStake.renewStake(existingStakeMapIndex, _stakeAmount, _autoRenewal, {from:_account});
 
             // Existing Stake
-            const [found_ea, pendingForApprovalAmount_ea, approvedAmount_ea, autoRenewal_ea, status_ea]
+            const [found_ea, pendingForApprovalAmount_ea, approvedAmount_ea, autoRenewal_ea]
             = await tokenStake.getStakeInfo.call(existingStakeMapIndex, _account);
 
             // Renew Stake
-            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a, status_a]
+            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a]
             = await tokenStake.getStakeInfo.call(currentStakeMapIndex, _account);
 
             const wallet_bal_a = (await token.balanceOf(_account)).toNumber();
@@ -531,12 +519,8 @@ contract('TokenStake', function(accounts) {
             // There should be any change in the wallet balance
             assert.equal(wallet_bal_b, wallet_bal_a - returnAmount);
 
-            // Previous Stake Amount Should be set to Zero (approvedAmount == Amount) & Status to Renewed
+            // Previous Stake Amount Should be set to Zero (approvedAmount == Amount)
             assert.equal(approvedAmount_ea.toNumber(), 0);
-            assert.equal(status_ea.toNumber(), 4); // 4 -> Renewed
-
-            // New Stake Should be Open
-            assert.equal(status_a.toNumber(), 0); // 0 -> Open
 
             // New Stake Amount Should previous stake amount + reward amount
             // Considered if the user has already stake in the current staking period
@@ -558,7 +542,7 @@ contract('TokenStake', function(accounts) {
             const contract_totalStake_b = (await tokenStake.totalStake.call()).toNumber();
             const totalApprovedStake_b = (await tokenStake.totalApprovedStake.call()).toNumber();
             
-            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b, status_b]
+            const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b]
             = await tokenStake.getStakeInfo.call(existingStakeMapIndex, _account);
             
             const [startPeriod_b, submissionEndPeriod_b, approvalEndPeriod_b, requestWithdrawStartPeriod_b, endPeriod_b, minStake_b, maxStake_b, windowMaxCap_b, openForExternal_b, windowTotalStake_b, windowRewardAmount_b, stakeHolders_b]
@@ -567,7 +551,7 @@ contract('TokenStake', function(accounts) {
             // Withdraw the Stake
             await tokenStake.withdrawStake(existingStakeMapIndex, _stakeAmount, {from:_account});
             
-            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a, status_a]
+            const [found_a, pendingForApprovalAmount_a, approvedAmount_a, autoRenewal_a]
             = await tokenStake.getStakeInfo.call(existingStakeMapIndex, _account);
             
             const [startPeriod_a, submissionEndPeriod_a, approvalEndPeriod_a, requestWithdrawStartPeriod_a, endPeriod_a, minStake_a, maxStake_a, windowMaxCap_a, openForExternal_a, windowTotalStake_a, windowRewardAmount_a, stakeHolders_a]
@@ -577,9 +561,6 @@ contract('TokenStake', function(accounts) {
             const contract_account_bal_a = (await tokenStake.balances(_account)).toNumber();
             const contract_totalStake_a = (await tokenStake.totalStake.call()).toNumber();
             const totalApprovedStake_a = (await tokenStake.totalApprovedStake.call()).toNumber();
-
-            // Stake Request Status Should be the same
-            assert.equal(status_a.toNumber(), status_b.toNumber());
 
             // Stake Amount should be reset to zero
             assert.equal(pendingForApprovalAmount_a.toNumber(), pendingForApprovalAmount_b.toNumber() - _stakeAmount);
@@ -885,7 +866,7 @@ contract('TokenStake', function(accounts) {
         await submitStakeAndVerify(stakeAmount_a7, autoRenewalYes, accounts[7]);
 
         // Get the ApprovedAmount for the staker - accounts[5]
-        const [found_eb, pendingForApprovalAmount_eb, approvedAmount_eb, autoRenewal_eb, status_eb]
+        const [found_eb, pendingForApprovalAmount_eb, approvedAmount_eb, autoRenewal_eb]
         = await tokenStake.getStakeInfo.call(existingStakeMapIndex, accounts[5]);
 
         // Renew Stake for the existing Approved Amount - So Reward should be returned to user
@@ -898,7 +879,7 @@ contract('TokenStake', function(accounts) {
 
         // Get the StakeAmount for the staker - accounts[5]
         const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
-        const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b, status_b]
+        const [found_b, pendingForApprovalAmount_b, approvedAmount_b, autoRenewal_b]
         = await tokenStake.getStakeInfo.call(currentStakeMapIndex, accounts[5]);
 
         await approveStakeAndVerify(accounts[5], pendingForApprovalAmount_b.toNumber(), accounts[9]);
@@ -942,7 +923,7 @@ contract('TokenStake', function(accounts) {
         // Get the StakeAmount for the staker - accounts[5]
         const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
         
-        const [found_eb, pendingForApprovalAmount_eb, approvedAmount_eb, autoRenewal_eb, status_eb]
+        const [found_eb, pendingForApprovalAmount_eb, approvedAmount_eb, autoRenewal_eb]
         = await tokenStake.getStakeInfo.call(existingStakeMapIndex, accounts[5]);
 
         const max = 100;
