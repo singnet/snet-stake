@@ -14,9 +14,7 @@ contract TokenStake {
     uint256 public totalApprovedStake; // Token balance in the contract - Only approved stake will be part of it
     mapping (address => uint256) public balances; // Useer Token balance in the contract
 
-    
-    uint256 public currentStakeMapIndex;
-    bool public stakingOperationDisabled;
+    uint256 public currentStakeMapIndex; // Current Stake Index to avoid math calc in all methods
 
     struct StakeInfo {
         bool exist;
@@ -55,7 +53,6 @@ contract TokenStake {
     // Events
     event NewOwner(address owner);
     event NewOperator(address tokenOperator);
-    event UpdateOperations(address tokenOperator, bool stakingOperationDisabled);
 
     event WithdrawToken(address indexed tokenOperator, uint256 amount);
     event DepositToken(address indexed tokenOperator, uint256 amount);
@@ -92,7 +89,6 @@ contract TokenStake {
     // Token Operator should be able to do auto renewal
     modifier allowSubmission() {        
         require(
-            stakingOperationDisabled == false && 
             now >= stakeMap[currentStakeMapIndex].startPeriod && 
             now <= stakeMap[currentStakeMapIndex].submissionEndPeriod && 
             (stakeMap[currentStakeMapIndex].openForExternal == true || msg.sender == tokenOperator), 
@@ -131,11 +127,15 @@ contract TokenStake {
 
     modifier allowClaimStake(uint256 stakeMapIndex) {
         // Check to see withdraw stake is allowed
+
+        uint256 graceTime;
+        graceTime = stakeMap[stakeMapIndex].endPeriod.sub(stakeMap[stakeMapIndex].requestWithdrawStartPeriod);
+
         require(
             now > stakeMap[stakeMapIndex].endPeriod && 
             stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].approvedAmount > 0 && 
-            (stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].autoRenewal == false || stakingOperationDisabled == true) , 
-            "Invalid withdraw request"
+            (stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].autoRenewal == false || now > stakeMap[stakeMapIndex].endPeriod.add(graceTime)) , 
+            "Invalid claim request"
         );
         _;
     }
@@ -199,19 +199,12 @@ contract TokenStake {
         
         require(value <= totalApprovedStake, "Not enough balance in the contract");
         require(token.transfer(msg.sender, value), "Unable to transfer token to the operator account");
-        require(stakingOperationDisabled == false, "Withdrawal not allowed when staking is disabled");
 
         // Update the token balance
         totalApprovedStake = totalApprovedStake.sub(value);
 
         emit WithdrawToken(tokenOperator, value);
         
-    }
-
-    function enableOrDisableOperations(bool _stakingOperationDisabled) public onlyOperator
-    {
-        stakingOperationDisabled = _stakingOperationDisabled;
-        emit UpdateOperations(msg.sender, _stakingOperationDisabled);
     }
 
 
@@ -223,9 +216,6 @@ contract TokenStake {
 
         // Check Stake in Progress
         require(nextStakeMapIndex == 0 || now > stakeMap[currentStakeMapIndex].approvalEndPeriod, "Cannot have more than one stake request at a time");
-
-        // Check for Operations disabled
-        require(stakingOperationDisabled == false, "Cannot open stake as operations disabled");
 
         // Move the staking period to next one
         currentStakeMapIndex = nextStakeMapIndex;
