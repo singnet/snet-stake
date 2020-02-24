@@ -610,7 +610,8 @@ contract('TokenStake', function(accounts) {
         }
 
         const getRandomNumber = (max) => {
-            return Math.floor(Math.random() * Math.floor(max));
+            const min = 10; // To avoid zero rand number
+            return Math.floor(Math.random() * (max - min) + min);
         }
 
         const sleep = async (sec) => {
@@ -917,7 +918,7 @@ contract('TokenStake', function(accounts) {
 
         await sleep(await waitTimeInSlot("OPEN_FOR_SUBMISSION")); // Sleep to start the submissions
 
-        const approvedAmount = approvedAmount_eb.toNumber() + 100000000; // Reward - 1 AGI should be returned to user wallet
+        const approvedAmount = approvedAmount_eb.toNumber() + 100000000; // Reward > 1 AGI 
 
         // Auto Renew Stake 
         // Can be performed only by Token Operator -- Should Fail
