@@ -138,7 +138,6 @@ contract TokenStake {
         _;
     }
 
-
     modifier allowAutoRenewStake(uint256 stakeMapIndex, address staker) {
         // Check to see withdraw stake is allowed
         require(
@@ -150,6 +149,14 @@ contract TokenStake {
         _;
     }
 
+    modifier checkWindowMaxCapLimit(uint256 stakeMapIndex, uint256 approvedAmount) {
+        // To make sure that the total approved is not crossing the max Cap
+        require(
+            stakeMap[stakeMapIndex].windowTotalStake.add(approvedAmount) <=  stakeMap[stakeMapIndex].windowMaxCap,  
+            "Approval violates window max cap limit"
+        );
+        _;
+    }
 
     constructor(address _token)
     public
@@ -301,7 +308,13 @@ contract TokenStake {
         return calcRewardAmount;
     }
 
-    function autoRenewStake(uint256 stakeMapIndex, address staker, uint256 approvedAmount) public onlyOperator allowSubmission allowAutoRenewStake(stakeMapIndex, staker) {
+    function autoRenewStake(uint256 stakeMapIndex, address staker, uint256 approvedAmount) 
+    public 
+    onlyOperator 
+    allowSubmission 
+    allowAutoRenewStake(stakeMapIndex, staker) 
+    checkWindowMaxCapLimit(currentStakeMapIndex, approvedAmount)
+    {
 
         StakeInfo storage oldStakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
 
@@ -421,7 +434,11 @@ contract TokenStake {
 
     }
 
-    function approveStake(address staker, uint256 approvedAmount) public onlyOperator {
+    function approveStake(address staker, uint256 approvedAmount) 
+    public 
+    onlyOperator 
+    checkWindowMaxCapLimit(currentStakeMapIndex, approvedAmount)
+    {
 
         // Request for Stake should be in Approval phase
         require(now > stakeMap[currentStakeMapIndex].submissionEndPeriod && now <= stakeMap[currentStakeMapIndex].approvalEndPeriod, "Approval at this point not allowed");
