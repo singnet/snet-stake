@@ -10,7 +10,7 @@ contract TokenStake {
     address public owner;
     ERC20 public token; // Address of token contract
     address public tokenOperator; // Address to manage the Stake 
-    uint256 public totalApprovedStake; // Token balance in the contract - Only approved stake will be part of it
+    uint256 public totalPendingApprovalStake; // Stake which should not be part of the Liquid Pool
     mapping (address => uint256) public balances; // Useer Token balance in the contract
 
     uint256 public currentStakeMapIndex; // Current Stake Index to avoid math calc in all methods
@@ -183,22 +183,16 @@ contract TokenStake {
         // Input validation are in place in token contract
         require(token.transferFrom(msg.sender, this, value), "Unable to transfer token to the contract"); 
 
-        // Update the Token Balance
-        totalApprovedStake = totalApprovedStake.add(value);
-
         emit DepositToken(tokenOperator, value);
 
     }
     
     function withdrawToken(uint256 value) public onlyOperator
     {
-        // Token Balance is sum of all Approved Amounts, Restricts withdrawal of stake which are in approval process
-        
-        require(value <= totalApprovedStake, "Not enough balance in the contract");
-        require(token.transfer(msg.sender, value), "Unable to transfer token to the operator account");
 
-        // Update the token balance
-        totalApprovedStake = totalApprovedStake.sub(value);
+        // Contract Token balance should maintain min of totalPendingApprovalStake 
+        require(token.balanceOf(this) >= totalPendingApprovalStake.add(value), "Not enough balance in the contract");
+        require(token.transfer(msg.sender, value), "Unable to transfer token to the operator account");
 
         emit WithdrawToken(tokenOperator, value);
         
@@ -286,6 +280,9 @@ contract TokenStake {
 
         // Update the User balance
         balances[msg.sender] = balances[msg.sender].add(stakeAmount);
+
+        // Update the total pending for Approval
+        totalPendingApprovalStake = totalPendingApprovalStake.add(stakeAmount);
         
         emit SubmitStake(currentStakeMapIndex, msg.sender, stakeAmount, autoRenewal);
 
@@ -336,9 +333,6 @@ contract TokenStake {
         // Update the User Balance
         balances[staker] = balances[staker].add(rewardAmount).sub(returnAmount);
 
-        // Update the token balance
-        totalApprovedStake = totalApprovedStake.sub(returnAmount);
-
         // Update the existsing Approved Amount
         oldStakeInfo.approvedAmount = 0;
 
@@ -383,8 +377,8 @@ contract TokenStake {
         // Update the User Balance
         balances[msg.sender] = balances[msg.sender].add(rewardAmount).sub(returnAmount);
 
-        // Update the token balance
-        totalApprovedStake = totalApprovedStake.sub(totalAmount);
+        // Update the total pending for Approval
+        totalPendingApprovalStake = totalPendingApprovalStake.add(stakeAmount);
 
         // Update the existing Stake Approved Amount
         oldStakeInfo.approvedAmount = 0;
@@ -416,9 +410,6 @@ contract TokenStake {
 
         // Update the User Balance
         balances[msg.sender] = balances[msg.sender].sub(stakeInfo.approvedAmount);
-
-        // Update the token balance
-        totalApprovedStake = totalApprovedStake.sub(totalAmount);
 
         // Update the existing Stake Approved Amount
         stakeInfo.approvedAmount = 0;
@@ -456,9 +447,9 @@ contract TokenStake {
 
         // Update the User Balance
         balances[staker] = balances[staker].sub(returnAmount);
-        
-        // Update the token balance
-        totalApprovedStake = totalApprovedStake.add(approvedAmount);
+
+        // Update the total pending for Approval
+        totalPendingApprovalStake = totalPendingApprovalStake.sub(stakeInfo.pendingForApprovalAmount);
 
         // Update the Stake Request
         stakeInfo.pendingForApprovalAmount = 0;
@@ -486,6 +477,9 @@ contract TokenStake {
 
         // Update the User Balance
         balances[staker] = balances[staker].sub(stakeInfo.pendingForApprovalAmount);
+
+        // Update the total pending for Approval
+        totalPendingApprovalStake = totalPendingApprovalStake.sub(stakeInfo.pendingForApprovalAmount);
 
         // Update the Pending Amount
         stakeInfo.pendingForApprovalAmount = 0;
@@ -522,7 +516,10 @@ contract TokenStake {
 
         // Update the User balance
         balances[msg.sender] = balances[msg.sender].sub(stakeAmount);
-        
+
+        // Update the total pending for Approval
+        totalPendingApprovalStake = totalPendingApprovalStake.sub(stakeAmount);
+
         // Return to User Wallet
         require(token.transfer(msg.sender, stakeAmount), "Unable to transfer token to the account");
 
