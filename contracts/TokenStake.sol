@@ -10,7 +10,6 @@ contract TokenStake {
     address public owner;
     ERC20 public token; // Address of token contract
     address public tokenOperator; // Address to manage the Stake 
-    uint256 public totalStake; // Total Stake deposited in the contract - Doesnt contain reward
     uint256 public totalApprovedStake; // Token balance in the contract - Only approved stake will be part of it
     mapping (address => uint256) public balances; // Useer Token balance in the contract
 
@@ -45,7 +44,6 @@ contract TokenStake {
         mapping(address => StakeInfo) stakeHolderInfo; 
     }
 
-    uint256 public nextStakeMapIndex;
     mapping (uint256 => StakePeriod) public stakeMap;
 
     mapping (address => uint256[]) public stakerPeriodMap;
@@ -159,7 +157,6 @@ contract TokenStake {
         token = ERC20(_token);
         owner = msg.sender;
         tokenOperator = msg.sender;
-        nextStakeMapIndex = 0;
         currentStakeMapIndex = 0;
     }
 
@@ -215,10 +212,10 @@ contract TokenStake {
         require(_windowRewardAmount > 0 && _windowMaxCap > 0 && _minStake > 0 && _maxStake > 0 , "Invalid min stake or interest rate" );
 
         // Check Stake in Progress
-        require(nextStakeMapIndex == 0 || now > stakeMap[currentStakeMapIndex].approvalEndPeriod, "Cannot have more than one stake request at a time");
+        require(currentStakeMapIndex == 0 || now > stakeMap[currentStakeMapIndex].approvalEndPeriod, "Cannot have more than one stake request at a time");
 
         // Move the staking period to next one
-        currentStakeMapIndex = nextStakeMapIndex;
+        currentStakeMapIndex = currentStakeMapIndex + 1;
         StakePeriod memory stakePeriod;
 
         // Set Staking attributes
@@ -235,7 +232,7 @@ contract TokenStake {
 
         stakeMap[currentStakeMapIndex] = stakePeriod;
 
-        emit OpenForStake(nextStakeMapIndex++, msg.sender, _startPeriod, _endPeriod, _approvalEndPeriod, _windowRewardAmount);
+        emit OpenForStake(currentStakeMapIndex, msg.sender, _startPeriod, _endPeriod, _approvalEndPeriod, _windowRewardAmount);
 
     }
 
@@ -290,9 +287,6 @@ contract TokenStake {
         // Update the User balance
         balances[msg.sender] = balances[msg.sender].add(stakeAmount);
         
-        // Update the Total Stake
-        totalStake = totalStake.add(stakeAmount);
-
         emit SubmitStake(currentStakeMapIndex, msg.sender, stakeAmount, autoRenewal);
 
     }
@@ -342,9 +336,6 @@ contract TokenStake {
         // Update the User Balance
         balances[staker] = balances[staker].add(rewardAmount).sub(returnAmount);
 
-        // Update the Total Stake
-        totalStake = totalStake.add(rewardAmount).sub(returnAmount);
-
         // Update the token balance
         totalApprovedStake = totalApprovedStake.sub(returnAmount);
 
@@ -392,9 +383,6 @@ contract TokenStake {
         // Update the User Balance
         balances[msg.sender] = balances[msg.sender].add(rewardAmount).sub(returnAmount);
 
-        // Update the Total Stake
-        totalStake = totalStake.add(rewardAmount).sub(returnAmount);
-
         // Update the token balance
         totalApprovedStake = totalApprovedStake.sub(totalAmount);
 
@@ -428,9 +416,6 @@ contract TokenStake {
 
         // Update the User Balance
         balances[msg.sender] = balances[msg.sender].sub(stakeInfo.approvedAmount);
-
-        // Update the Total Stake
-        totalStake = totalStake.sub(stakeInfo.approvedAmount);
 
         // Update the token balance
         totalApprovedStake = totalApprovedStake.sub(totalAmount);
@@ -472,9 +457,6 @@ contract TokenStake {
         // Update the User Balance
         balances[staker] = balances[staker].sub(returnAmount);
         
-        // Update the Total Stake
-        totalStake = totalStake.sub(returnAmount);
-        
         // Update the token balance
         totalApprovedStake = totalApprovedStake.add(approvedAmount);
 
@@ -504,9 +486,6 @@ contract TokenStake {
 
         // Update the User Balance
         balances[staker] = balances[staker].sub(stakeInfo.pendingForApprovalAmount);
-
-        // Update the Total Stake
-        totalStake = totalStake.sub(stakeInfo.pendingForApprovalAmount);
 
         // Update the Pending Amount
         stakeInfo.pendingForApprovalAmount = 0;
@@ -544,9 +523,6 @@ contract TokenStake {
         // Update the User balance
         balances[msg.sender] = balances[msg.sender].sub(stakeAmount);
         
-        // Update the Total Stake
-        totalStake = totalStake.sub(stakeAmount);
-
         // Return to User Wallet
         require(token.transfer(msg.sender, stakeAmount), "Unable to transfer token to the account");
 
