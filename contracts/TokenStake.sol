@@ -121,7 +121,7 @@ contract TokenStake {
             (stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].approvedAmount > 0 && 
             now >= stakeMap[stakeMapIndex].requestWithdrawStartPeriod &&
             now <= stakeMap[stakeMapIndex].endPeriod), 
-            "Request for withdrawal at this point not allowed"
+            "Update to auto renewal at this point not allowed"
         );
         _;
     }
