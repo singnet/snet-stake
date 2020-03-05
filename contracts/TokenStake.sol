@@ -115,10 +115,13 @@ contract TokenStake {
     modifier canUpdateAutoRenewal(uint256 stakeMapIndex) {
         // Check to see request for withdraw stake is allowed
         require(
-            stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].approvedAmount > 0 && 
-            now >= stakeMap[currentStakeMapIndex].requestWithdrawStartPeriod &&
-            now <= stakeMap[currentStakeMapIndex].endPeriod, 
-            "Request for withdrawal at this point not allowed"
+            (stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].pendingForApprovalAmount > 0 && 
+            now >= stakeMap[stakeMapIndex].startPeriod &&
+            now <= stakeMap[stakeMapIndex].submissionEndPeriod) || 
+            (stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].approvedAmount > 0 && 
+            now >= stakeMap[stakeMapIndex].requestWithdrawStartPeriod &&
+            now <= stakeMap[stakeMapIndex].endPeriod), 
+            "Update to auto renewal at this point not allowed"
         );
         _;
     }

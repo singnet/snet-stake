@@ -720,6 +720,10 @@ contract('TokenStake', function(accounts) {
         await submitStakeAndVerify(stakeAmount_a4, autoRenewalYes, accounts[4]);
         await submitStakeAndVerify(stakeAmount_a5, autoRenewalNo, accounts[5]);
 
+        // Should be able to Change the Auto Renewal Flag
+        await updateAutoRenewalAndVerify(currentStakeMapIndex, autoRenewalYes, accounts[5]);
+        await updateAutoRenewalAndVerify(currentStakeMapIndex, autoRenewalNo, accounts[5]);
+
         // 2nd Submit Stake in the same period
         await submitStakeAndVerify(10 * 100000000, autoRenewalYes, accounts[3]);
 
