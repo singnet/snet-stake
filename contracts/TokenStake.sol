@@ -2,12 +2,12 @@ pragma solidity ^0.4.24;
 
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/ownership/Claimable.sol";
 
-contract TokenStake {
+contract TokenStake is Claimable{
     
     using SafeMath for uint256;
 
-    address public owner;
     ERC20 public token; // Address of token contract
     address public tokenOperator; // Address to manage the Stake 
     uint256 public totalPendingApprovalStake; // Stake which should not be part of the Liquid Pool
@@ -17,9 +17,9 @@ contract TokenStake {
 
     struct StakeInfo {
         bool exist;
+        bool autoRenewal;
         uint256 pendingForApprovalAmount;
         uint256 approvedAmount;
-        bool autoRenewal;
     }
 
     // Staking period timestamp (Debatable on timestamp vs blocknumber - went with timestamp)
@@ -49,7 +49,6 @@ contract TokenStake {
     mapping (address => uint256[]) public stakerPeriodMap;
 
     // Events
-    event NewOwner(address owner);
     event NewOperator(address tokenOperator);
 
     event WithdrawToken(address indexed tokenOperator, uint256 amount);
@@ -69,13 +68,6 @@ contract TokenStake {
     event WithdrawStake(uint256 indexed stakeIndex, address indexed staker, uint256 stakeAmount);
 
     // Modifiers
-    modifier onlyOwner() {
-        require(
-            msg.sender == owner,
-            "Only owner can call this function."
-        );
-        _;
-    }
     modifier onlyOperator() {
         require(
             msg.sender == tokenOperator,
@@ -170,14 +162,6 @@ contract TokenStake {
         currentStakeMapIndex = 0;
     }
 
-    function updateOwner(address newOwner) public onlyOwner {
-
-        require(newOwner != address(0), "Invalid owner address");
-
-        owner = newOwner;
-
-        emit NewOwner(newOwner);
-    }
 
     function updateOperator(address newOperator) public onlyOwner {
 
@@ -213,7 +197,7 @@ contract TokenStake {
 
         // Check Input Parameters
         require(_startPeriod >= now && _startPeriod < _submissionEndPeriod && _submissionEndPeriod < _approvalEndPeriod && _approvalEndPeriod < _requestWithdrawStartPeriod && _requestWithdrawStartPeriod < _endPeriod, "Invalid stake period");
-        require(_windowRewardAmount > 0 && _windowMaxCap > 0 && _minStake > 0 && _maxStake > 0 , "Invalid min stake or interest rate" );
+        require(_windowRewardAmount > 0 && _windowMaxCap > 0 && _minStake > 0 && _maxStake > 0 && _minStake < _maxStake && _maxStake < _windowMaxCap, "Invalid inputs" );
 
         // Check Stake in Progress
         require(currentStakeMapIndex == 0 || now > stakeMap[currentStakeMapIndex].approvalEndPeriod, "Cannot have more than one stake request at a time");
@@ -240,7 +224,7 @@ contract TokenStake {
 
     }
 
-    function createStake(address staker, uint256 stakeAmount, bool autoRenewal, bool isAutoRenewal) internal returns(bool) {
+    function _createStake(address staker, uint256 stakeAmount, bool autoRenewal, bool isAutoRenewal) internal returns(bool) {
 
         StakeInfo storage stakeInfo = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker];
 
@@ -286,7 +270,7 @@ contract TokenStake {
         // Transfer the Tokens to Contract
         require(token.transferFrom(msg.sender, this, stakeAmount), "Unable to transfer token to the contract");
 
-        require(createStake(msg.sender, stakeAmount, autoRenewal, false));
+        _createStake(msg.sender, stakeAmount, autoRenewal, false);
 
         // Update the User balance
         balances[msg.sender] = balances[msg.sender].add(stakeAmount);
@@ -298,15 +282,18 @@ contract TokenStake {
 
     }
 
-    function calculateRewardAmount(uint256 stakeMapIndex, uint256 stakeAmount) internal view returns(uint256) {
+    function _calculateRewardAmount(uint256 stakeMapIndex, uint256 stakeAmount) internal view returns(uint256) {
 
         uint256 calcRewardAmount;
 
+        /*
         if(stakeMap[stakeMapIndex].windowTotalStake < stakeMap[stakeMapIndex].windowMaxCap) {
             calcRewardAmount = stakeAmount.mul(stakeMap[stakeMapIndex].windowRewardAmount).div(stakeMap[stakeMapIndex].windowTotalStake);
         } else {
             calcRewardAmount = stakeAmount.mul(stakeMap[stakeMapIndex].windowRewardAmount).div(stakeMap[stakeMapIndex].windowMaxCap);
         }
+        */
+        calcRewardAmount = stakeAmount.mul(stakeMap[stakeMapIndex].windowRewardAmount).div(stakeMap[stakeMapIndex].windowTotalStake);
 
         return calcRewardAmount;
     }
@@ -319,6 +306,8 @@ contract TokenStake {
     checkWindowMaxCapLimit(currentStakeMapIndex, approvedAmount)
     {
 
+        require(approvedAmount > 0, "Invalid approval amount");
+
         StakeInfo storage oldStakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
 
         // Calculate the totalAmount
@@ -326,13 +315,13 @@ contract TokenStake {
         uint256 rewardAmount;
         uint256 returnAmount;
 
-        rewardAmount = calculateRewardAmount(stakeMapIndex, oldStakeInfo.approvedAmount);
+        rewardAmount = _calculateRewardAmount(stakeMapIndex, oldStakeInfo.approvedAmount);
         totalAmount = oldStakeInfo.approvedAmount.add(rewardAmount);
 
         require(approvedAmount <= totalAmount, "Invalid approved amount");
 
         // Create a new stake in current staking period
-        require(createStake(staker, approvedAmount, oldStakeInfo.autoRenewal, true));
+        _createStake(staker, approvedAmount, oldStakeInfo.autoRenewal, true);
 
         if(approvedAmount < totalAmount) {
 
@@ -366,7 +355,7 @@ contract TokenStake {
         uint256 totalAmount;
         uint256 rewardAmount;
 
-        rewardAmount = calculateRewardAmount(stakeMapIndex, oldStakeInfo.approvedAmount);
+        rewardAmount = _calculateRewardAmount(stakeMapIndex, oldStakeInfo.approvedAmount);
         totalAmount = oldStakeInfo.approvedAmount.add(rewardAmount);
 
         uint256 stakerTotalStake;
@@ -381,7 +370,7 @@ contract TokenStake {
             "Invalid stake amount"
         );
 
-        require(createStake(msg.sender, stakeAmount, autoRenewal, false));
+        _createStake(msg.sender, stakeAmount, autoRenewal, false);
 
         uint256 returnAmount;
         if(stakeAmount < totalAmount) {
@@ -420,7 +409,7 @@ contract TokenStake {
         uint256 totalAmount;
         uint256 rewardAmount;
 
-        rewardAmount = calculateRewardAmount(stakeMapIndex, stakeInfo.approvedAmount);
+        rewardAmount = _calculateRewardAmount(stakeMapIndex, stakeInfo.approvedAmount);
 
         totalAmount = stakeInfo.approvedAmount.add(rewardAmount);
 
@@ -520,7 +509,7 @@ contract TokenStake {
         StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
 
         // In Any State User can withdraw - based on time slots as above
-        require(stakeAmount > 0 && stakeInfo.pendingForApprovalAmount > 0 &&
+        require(stakeAmount > 0 &&
         stakeInfo.pendingForApprovalAmount >= stakeAmount,
         "Cannot withdraw beyond stake amount");
 

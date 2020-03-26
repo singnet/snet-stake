@@ -57,10 +57,19 @@ contract('TokenStake', function(accounts) {
 
         const updateOwnerAndVerify = async(_newOwner, _account) => {
 
-            await tokenStake.updateOwner(_newOwner, {from:_account});
+            let newOwner = "0x0"
 
-            // Get the Updated Owner
-            const newOwner = await tokenStake.owner.call();
+            const owner_b = await tokenStake.owner.call();
+            await tokenStake.transferOwnership(_newOwner, {from:_account});
+
+            // Owner should not be updated until new Owner Accept the Ownership
+            newOwner = await tokenStake.owner.call();
+            assert.equal(newOwner, owner_b);
+
+            // Call the function to accept the ownership
+            await tokenStake.claimOwnership({from:_newOwner});
+            newOwner = await tokenStake.owner.call();
+
             assert.equal(newOwner, _newOwner);
 
         }
@@ -644,7 +653,7 @@ contract('TokenStake', function(accounts) {
         await updateOwnerAndVerify(accounts[0], accounts[1]);
 
         // Owner Cannot be updated by any other user
-        await testErrorRevert(tokenStake.updateOwner(accounts[1], {from:accounts[2]}));
+        await testErrorRevert(tokenStake.transferOwnership(accounts[1], {from:accounts[2]}));
 
     });
 
