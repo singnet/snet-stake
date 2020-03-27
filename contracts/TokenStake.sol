@@ -14,6 +14,7 @@ contract TokenStake is Claimable{
     mapping (address => uint256) public balances; // Useer Token balance in the contract
 
     uint256 public currentStakeMapIndex; // Current Stake Index to avoid math calc in all methods
+    uint256 public maxDaysToOpenInSecs;       // Max number of days in the future to open a new stake
 
     struct StakeInfo {
         bool exist;
@@ -159,6 +160,7 @@ contract TokenStake is Claimable{
         token = ERC20(_token);
         owner = msg.sender;
         tokenOperator = msg.sender;
+        maxDaysToOpenInSecs = 7776000; // 90d * 24h * 60m * 60s
         currentStakeMapIndex = 0;
     }
 
@@ -170,6 +172,13 @@ contract TokenStake is Claimable{
         tokenOperator = newOperator;
 
         emit NewOperator(newOperator);
+    }
+
+    function updateMaxDaysToOpen(uint256 maxNumOfDaysToOpen) public onlyOperator {
+
+        require(maxNumOfDaysToOpen > 0, "Invalid input value");
+        maxDaysToOpenInSecs = maxNumOfDaysToOpen.mul(86400);   // maxNumOfDaysToOpen * 24h * 60m * 60s
+
     }
 
     function depositToken(uint256 value) public onlyOperator {
@@ -201,6 +210,9 @@ contract TokenStake is Claimable{
 
         // Check Stake in Progress
         require(currentStakeMapIndex == 0 || now > stakeMap[currentStakeMapIndex].approvalEndPeriod, "Cannot have more than one stake request at a time");
+
+        // Check for max days to open to avoid the locking to open a new stake
+        require(now > _approvalEndPeriod.sub(maxDaysToOpenInSecs), "Too futuristic");
 
         // Move the staking period to next one
         currentStakeMapIndex = currentStakeMapIndex + 1;

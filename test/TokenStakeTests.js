@@ -84,6 +84,17 @@ contract('TokenStake', function(accounts) {
 
         }
         
+        const updateMaxDaysToOpenAndVeryfy = async(_maxNumOfDaysToOpen, _account) => {
+
+            await tokenStake.updateMaxDaysToOpen(_maxNumOfDaysToOpen, {from:_account});
+
+            // Get the Updated max Num Of Days To Open
+            const maxDaysToOpenInSecs = await tokenStake.maxDaysToOpenInSecs.call();
+            assert.equal(maxDaysToOpenInSecs, (_maxNumOfDaysToOpen * 24 * 60 * 60));
+
+        }
+        
+
         const openStakeAndVerify = async(_startPeriod, _endSubmission, _endApproval, _requestWithdrawStartPeriod, _endPeriod, _rewardAmount, _maxCap, _minStake, _maxStake, _openForExternal, _account) => {
         
             const currentStakeMapIndex_b = (await tokenStake.currentStakeMapIndex.call()).toNumber();
@@ -696,6 +707,16 @@ contract('TokenStake', function(accounts) {
         
         // Improper Staking Period - Should Fail
         await testErrorRevert(tokenStake.openForStake(startPeriod, endSubmission, endApproval, requestWithdrawStartPeriod, endPeriod - 40, rewardAmount, maxCap, minStake, maxStake, openForExternal, {from:accounts[9]}));
+
+        // Non Operator try to update the Max Days to Open to open - Should Fail
+        await testErrorRevert(tokenStake.updateMaxDaysToOpen(60, {from:accounts[1]}));
+
+        // Update the Max Days to Open to 60 Days
+        await updateMaxDaysToOpenAndVeryfy(60, accounts[9]);
+
+        // Try to Open Stake after 60 days - should fail
+        const maxDaysToOpenInSecs = 90 * 24 * 60 * 60;
+        await testErrorRevert(tokenStake.openForStake(parseInt(startPeriod) + maxDaysToOpenInSecs, parseInt(endSubmission) + maxDaysToOpenInSecs, parseInt(endApproval) + maxDaysToOpenInSecs, parseInt(requestWithdrawStartPeriod) + maxDaysToOpenInSecs, parseInt(endPeriod) + maxDaysToOpenInSecs, rewardAmount, maxCap, minStake, maxStake, openForExternal, {from:accounts[9]}));
 
         // acocunts[9] is a Token Operator
         await openStakeAndVerify(startPeriod, endSubmission, endApproval, requestWithdrawStartPeriod, endPeriod, rewardAmount, maxCap, minStake, maxStake, openForExternal, accounts[9]);
