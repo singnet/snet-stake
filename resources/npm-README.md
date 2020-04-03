@@ -1,2 +1,2 @@
-# rfai-contracts
-RFAI Contracts
+# staking-contracts
+STAKING Contracts
