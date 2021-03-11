@@ -1,10 +1,12 @@
-pragma solidity ^0.4.24;
+pragma solidity >=0.4.22 <0.8.0;
 
-import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
-import "openzeppelin-solidity/contracts/ownership/Claimable.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+//import "openzeppelin-solidity/contracts/ownership/Claimable.sol";
 
-contract TokenStake is Claimable{
+
+contract TokenStake is Ownable{
     
     using SafeMath for uint256;
 
@@ -158,7 +160,8 @@ contract TokenStake is Claimable{
     public
     {
         token = ERC20(_token);
-        owner = msg.sender;
+        // Assigned in the Ownable Constructor
+        //owner = msg.sender;
         tokenOperator = msg.sender;
         maxDaysToOpenInSecs = 7776000; // 90d * 24h * 60m * 60s
         currentStakeMapIndex = 0;
@@ -184,7 +187,7 @@ contract TokenStake is Claimable{
     function depositToken(uint256 value) public onlyOperator {
 
         // Input validation are in place in token contract
-        require(token.transferFrom(msg.sender, this, value), "Unable to transfer token to the contract"); 
+        require(token.transferFrom(msg.sender, address(this), value), "Unable to transfer token to the contract"); 
 
         emit DepositToken(tokenOperator, value);
 
@@ -194,7 +197,7 @@ contract TokenStake is Claimable{
     {
 
         // Contract Token balance should maintain min of totalPendingApprovalStake 
-        require(token.balanceOf(this) >= totalPendingApprovalStake.add(value), "Not enough balance in the contract");
+        require(token.balanceOf(address(this)) >= totalPendingApprovalStake.add(value), "Not enough balance in the contract");
         require(token.transfer(msg.sender, value), "Unable to transfer token to the operator account");
 
         emit WithdrawToken(tokenOperator, value);
@@ -280,7 +283,7 @@ contract TokenStake is Claimable{
     function submitStake(uint256 stakeAmount, bool autoRenewal) public allowSubmission validStakeLimit(msg.sender, stakeAmount) {
 
         // Transfer the Tokens to Contract
-        require(token.transferFrom(msg.sender, this, stakeAmount), "Unable to transfer token to the contract");
+        require(token.transferFrom(msg.sender, address(this), stakeAmount), "Unable to transfer token to the contract");
 
         _createStake(msg.sender, stakeAmount, autoRenewal, false);
 
@@ -540,11 +543,11 @@ contract TokenStake is Claimable{
 
 
     // Getter Functions
-    function getStakeHolders(uint256 stakeMapIndex) public view returns(address[]) {
+    function getStakeHolders(uint256 stakeMapIndex) public view returns(address[] memory) {
         return stakeMap[stakeMapIndex].stakeHolders;
     }
 
-    function getStakeHolderStakingPeriods(address staker) public view returns(uint256[]) {
+    function getStakeHolderStakingPeriods(address staker) public view returns(uint256[] memory) {
         return stakerPeriodMap[staker];
     }
 
