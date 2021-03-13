@@ -137,7 +137,6 @@ contract('TokenStakeV2', function(accounts) {
             const contract_bal_b = (await token.balanceOf(tokenStake.address)).toNumber();
 
             const contract_account_bal_b = (await tokenStake.balances(_account)).toNumber();
-            const totalPendingApprovalStake_b = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
 
             const {found: found_b, approvedAmount: approvedAmount_b, autoRenewal: autoRenewal_b}
             = await tokenStake.getStakeInfo.call(currentStakeMapIndex, _account);
@@ -158,16 +157,12 @@ contract('TokenStakeV2', function(accounts) {
             const contract_bal_a = (await token.balanceOf(tokenStake.address)).toNumber();
 
             const contract_account_bal_a = (await tokenStake.balances(_account)).toNumber();
-            const totalPendingApprovalStake_a = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
 
             assert.equal(autoRenewal_a, _autoRenewal)
 
             // Amount should be same as stake amount in case if there is only one submit
             // If there are more submits in a given staking period - will consider earlier submits in the same period
             assert.equal(approvedAmount_a.toNumber(), approvedAmount_b.toNumber() + _stakeAmount);
-
-            // Total Pending Amount Should Increase
-            assert.equal(totalPendingApprovalStake_a, totalPendingApprovalStake_b + _stakeAmount);
 
             // Wallet balance should reduce
             assert.equal(wallet_bal_a, wallet_bal_b - _stakeAmount);
@@ -190,7 +185,6 @@ contract('TokenStakeV2', function(accounts) {
 
             // Contract Stake Balance
             const contract_account_bal_b = (await tokenStake.balances(staker)).toNumber();
-            const totalPendingApprovalStake_b = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
 
             const {found: found_b, approvedAmount: approvedAmount_b, autoRenewal: autoRenewal_b}
             = await tokenStake.getStakeInfo.call(_stakeMapIndex, staker);
@@ -213,16 +207,12 @@ contract('TokenStakeV2', function(accounts) {
 
             // Contract Stake Balance
             const contract_account_bal_a = (await tokenStake.balances(staker)).toNumber();
-            const totalPendingApprovalStake_a = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
 
             // Stake Amount should be reset to zero
             assert.equal(approvedAmount_a.toNumber(), 0);
 
             // Token Balance in the wallet should increase
             assert.equal(wallet_bal_b, wallet_bal_a - approvedAmount_b.toNumber());
-
-            // Total Pending Amount Should Reduce
-            assert.equal(totalPendingApprovalStake_b, totalPendingApprovalStake_a + approvedAmount_b.toNumber());
 
             // Contract Token Balance Should Reduce
             assert.equal(contract_bal_b, contract_bal_a + approvedAmount_b.toNumber());
@@ -255,7 +245,6 @@ contract('TokenStakeV2', function(accounts) {
 
             // Contract Stake Balance
             const contract_account_bal_b = (await tokenStake.balances(_account)).toNumber();
-            const totalPendingApprovalStake_b = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
 
             const {found: found_b, approvedAmount: approvedAmount_b, autoRenewal: autoRenewal_b}
             = await tokenStake.getStakeInfo.call(_stakeMapIndex, _account);
@@ -275,7 +264,6 @@ contract('TokenStakeV2', function(accounts) {
 
             // Contract Stake Balance
             const contract_account_bal_a = (await tokenStake.balances(_account)).toNumber();
-            const totalPendingApprovalStake_a = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
 
             // Calculate the rewardAmount
             const rewardAmount = Math.floor(approvedAmount_b.toNumber() * windowRewardAmount_b.toNumber() / (windowTotalStake_b.toNumber()));
@@ -288,9 +276,6 @@ contract('TokenStakeV2', function(accounts) {
 
             // Account Balance, Total Stake & Total Approved Stake in the contract should reduce
             assert.equal(contract_account_bal_b, contract_account_bal_a + approvedAmount_b.toNumber());
-
-            // There should not be any change in the total Pending Approval Stake
-            assert.equal(totalPendingApprovalStake_a, totalPendingApprovalStake_b);
 
             // Amount in the respective staking period should reset to zero
             assert.equal(approvedAmount_a.toNumber(), 0);
@@ -347,7 +332,6 @@ contract('TokenStakeV2', function(accounts) {
             const contract_bal_b = (await token.balanceOf(tokenStake.address)).toNumber();
 
             const contract_account_bal_b = (await tokenStake.balances(_staker)).toNumber();
-            const totalPendingApprovalStake_b = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
 
             // Existing Stake
             const {found: found_eb, approvedAmount: approvedAmount_eb, autoRenewal: autoRenewal_eb}
@@ -381,7 +365,6 @@ contract('TokenStakeV2', function(accounts) {
             const contract_bal_a = (await token.balanceOf(tokenStake.address)).toNumber();
 
             const contract_account_bal_a = (await tokenStake.balances(_staker)).toNumber();
-            const totalPendingApprovalStake_a = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
 
             // Calculate the Reward
             const rewardAmount = Math.floor(approvedAmount_eb.toNumber() * windowRewardAmount_eb.toNumber() / (windowTotalStake_eb.toNumber()));
@@ -400,9 +383,6 @@ contract('TokenStakeV2', function(accounts) {
 
             // New Stake Should be Auto Renewed
             assert.equal(autoRenewal_a, true);
-
-            // There should not be any change in the total Pending Approval Stake
-            assert.equal(totalPendingApprovalStake_a, totalPendingApprovalStake_b);
 
             // Approved Amount should be increased
             assert.equal(approvedAmount_a.toNumber(), approvedAmount_b.toNumber() + newStakeAmount);
@@ -424,7 +404,6 @@ contract('TokenStakeV2', function(accounts) {
             const contract_bal_b = (await token.balanceOf(tokenStake.address)).toNumber();
 
             const contract_account_bal_b = (await tokenStake.balances(_account)).toNumber();
-            const totalPendingApprovalStake_b = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
 
             // Existing Stake
             const {found: found_eb, approvedAmount: approvedAmount_eb, autoRenewal: autoRenewal_eb}
@@ -451,7 +430,6 @@ contract('TokenStakeV2', function(accounts) {
             const contract_bal_a = (await token.balanceOf(tokenStake.address)).toNumber();
 
             const contract_account_bal_a = (await tokenStake.balances(_account)).toNumber();
-            const totalPendingApprovalStake_a = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
 
             // Calculate the Reward
             const rewardAmount = Math.floor(approvedAmount_eb.toNumber() * windowRewardAmount_eb.toNumber() / (windowTotalStake_eb.toNumber()));
@@ -467,9 +445,6 @@ contract('TokenStakeV2', function(accounts) {
 
             // Previous Stake Amount Should be set to Zero (approvedAmount == Amount)
             assert.equal(approvedAmount_ea.toNumber(), 0);
-            
-            // total Pending Approval Stake should increase
-            assert.equal(totalPendingApprovalStake_a, totalPendingApprovalStake_b + _stakeAmount);
 
             // Account Balance & Total Stake in the contract should increase by the reward amount
             assert.equal(contract_account_bal_a, contract_account_bal_b + rewardAmount - returnAmount);
@@ -482,7 +457,6 @@ contract('TokenStakeV2', function(accounts) {
             const contract_bal_b = (await token.balanceOf(tokenStake.address)).toNumber();
 
             const contract_account_bal_b = (await tokenStake.balances(_account)).toNumber();
-            const totalPendingApprovalStake_b = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
             
             const {found: found_b, approvedAmount: approvedAmount_b, autoRenewal: autoRenewal_b}
             = await tokenStake.getStakeInfo.call(existingStakeMapIndex, _account);
@@ -503,13 +477,9 @@ contract('TokenStakeV2', function(accounts) {
             const contract_bal_a = (await token.balanceOf(tokenStake.address)).toNumber();
 
             const contract_account_bal_a = (await tokenStake.balances(_account)).toNumber();
-            const totalPendingApprovalStake_a = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
 
             // Stake Amount Should Reduce
             assert.equal(approvedAmount_a.toNumber(), approvedAmount_b.toNumber() - _stakeAmount);
-            
-            // total Pending Approval Stake should reduce
-            assert.equal(totalPendingApprovalStake_a, totalPendingApprovalStake_b - _stakeAmount);
 
             // Token Balance in the wallet should increase
             assert.equal(wallet_bal_a, wallet_bal_b + _stakeAmount);
@@ -758,15 +728,13 @@ contract('TokenStakeV2', function(accounts) {
     it("6. Stake Pool Operations - Deposit & Withdraw Token from pool by Token Operator", async function() 
     {
 
-        const totalPendingApprovalStake = (await tokenStake.totalPendingApprovalStake.call()).toNumber();
         const contractTokenBalance = (await token.balanceOf(tokenStake.address)).toNumber();
 
-        const withdrawAmount = (contractTokenBalance - totalPendingApprovalStake - 10000000);
+        const withdrawAmount = (contractTokenBalance - 10000000);
         const depositAmount = withdrawAmount + 1000000000;
 
         // Withdrawing more than available tokens from pool - Should Fail
-        //await testErrorRevert(withdrawTokenAndVerify(contractTokenBalance - totalPendingApprovalStake + 10, accounts[9]));
-        await testErrorRevert(tokenStake.withdrawToken(contractTokenBalance - totalPendingApprovalStake + 10, {from:accounts[9]}));
+        await testErrorRevert(tokenStake.withdrawToken(contractTokenBalance + 10, {from:accounts[9]}));
 
         // Withdraw the tokens from pool
         await withdrawTokenAndVerify(withdrawAmount, accounts[9]);

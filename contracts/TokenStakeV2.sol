@@ -10,7 +10,7 @@ contract TokenStakeV2 is Ownable{
 
     ERC20 public token; // Address of token contract
     address public tokenOperator; // Address to manage the Stake 
-    uint256 public totalPendingApprovalStake; // Stake which should not be part of the Liquid Pool
+
     mapping (address => uint256) public balances; // Useer Token balance in the contract
 
     uint256 public currentStakeMapIndex; // Current Stake Index to avoid math calc in all methods
@@ -176,10 +176,9 @@ contract TokenStakeV2 is Ownable{
     
     function withdrawToken(uint256 value) public onlyOperator
     {
-// --- ***** Sridhar ***** Need to check the logic for totalPendingApprovalStake and check for its need as we are have auto approvals -- if we are using initialize to zero while opening window
 
-        // Contract Token balance should maintain min of totalPendingApprovalStake 
-        require(token.balanceOf(address(this)) >= totalPendingApprovalStake.add(value), "Not enough balance in the contract");
+        // Check if contract is having required balance 
+        require(token.balanceOf(address(this)) >= value, "Not enough balance in the contract");
         require(token.transfer(msg.sender, value), "Unable to transfer token to the operator account");
 
         emit WithdrawToken(tokenOperator, value);
@@ -274,10 +273,7 @@ contract TokenStakeV2 is Ownable{
 
         // Update current stake period total stake - For Auto Approvals
         stakeMap[currentStakeMapIndex].windowTotalStake = stakeMap[currentStakeMapIndex].windowTotalStake.add(stakeAmount); 
-
-        // Update the total pending for Approval
-        totalPendingApprovalStake = totalPendingApprovalStake.add(stakeAmount);
-        
+       
         emit SubmitStake(currentStakeMapIndex, msg.sender, stakeAmount, autoRenewal);
 
     }
@@ -314,9 +310,6 @@ contract TokenStakeV2 is Ownable{
         // Update current stake period total stake - For Auto Approvals
         stakeMap[stakeMapIndex].windowTotalStake = stakeMap[stakeMapIndex].windowTotalStake.sub(stakeAmount); 
 
-        // Update the total pending for Approval
-        totalPendingApprovalStake = totalPendingApprovalStake.sub(stakeAmount);
-
         // Return to User Wallet
         require(token.transfer(msg.sender, stakeAmount), "Unable to transfer token to the account");
 
@@ -346,9 +339,6 @@ contract TokenStakeV2 is Ownable{
 
         // Update current stake period total stake - For Auto Approvals
         stakeMap[stakeMapIndex].windowTotalStake = stakeMap[stakeMapIndex].windowTotalStake.sub(stakeInfo.approvedAmount);
-
-        // Update the total pending for Approval
-        totalPendingApprovalStake = totalPendingApprovalStake.sub(stakeInfo.approvedAmount);
 
         // Update the Pending Amount
         stakeInfo.approvedAmount = 0;
