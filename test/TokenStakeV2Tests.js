@@ -594,7 +594,7 @@ console.log("Number of Accounts - ", accounts.length)
 
     });
 
-/*
+
     it("3. Stake Operations - Open Stake", async function() 
     {
 
@@ -884,48 +884,8 @@ console.log("Number of Accounts - ", accounts.length)
         await claimStakeAndVerify(currentStakeMapIndex, accounts[8]);
 
     });
-*/
-/*
-    it("9. Stake Operations - Validation of Supporting Fields", async function()
-    {
 
-        // Check the Stakers are properly added in the Lookup fields
-        // stakeMapIndex starts with 1 not Zero
-        const stakeHolders_1 = await tokenStake.getStakeHolders(1); // Returns an array of stakeHolders
-        assert.equal(stakeHolders_1.length, 5);
-
-        // The order of the test cases should be as per the order of submits
-        assert.equal(stakeHolders_1[0], accounts[1]);
-        assert.equal(stakeHolders_1[1], accounts[2]);
-        assert.equal(stakeHolders_1[2], accounts[3]);
-        assert.equal(stakeHolders_1[3], accounts[4]);
-        assert.equal(stakeHolders_1[4], accounts[5]);
-
-        const stakeHolders_2 = await tokenStake.getStakeHolders(2); // Returns an array of stakeHolders
-
-        assert.equal(stakeHolders_2.length, 3);
-        // The order of the test cases should be as per the order of submits
-        assert.equal(stakeHolders_2[0], accounts[6]);
-        assert.equal(stakeHolders_2[1], accounts[7]);
-        assert.equal(stakeHolders_2[2], accounts[5]);
-
-        // Check for the Staker staking periods
-        const stakeHolders_A1 = await tokenStake.getStakeHolderStakingPeriods(accounts[1]); // Returns an array of staking periods
-        const stakeHolders_A5 = await tokenStake.getStakeHolderStakingPeriods(accounts[5]); // Returns an array of staking periods
-        const stakeHolders_A6 = await tokenStake.getStakeHolderStakingPeriods(accounts[6]); // Returns an array of staking periods
-
-        assert.equal(stakeHolders_A1.length, 1);
-        assert.equal(stakeHolders_A5.length, 3);
-        assert.equal(stakeHolders_A5[0],1);         // 1st Staking Period
-        assert.equal(stakeHolders_A5[1],2);         // 2nd Staking Period after Renewal
-        assert.equal(stakeHolders_A5[2],3);         // 3rd Staking Period after Renewal
-
-        assert.equal(stakeHolders_A6.length, 1);
-
-    });
-*/
-/*
-    it("10. Stake Operations - No more active Stakes Withdrawals", async function() 
+    it("9. Stake Operations - No more active Stakes Withdrawals", async function() 
     {
 
         // Staker should be able to withdraw the tokens when there is no active stake - means passing the grace period
@@ -938,13 +898,13 @@ console.log("Number of Accounts - ", accounts.length)
 
     });
 
-*/
+
     // Following Test cases are for capturing the Gas Usage for large set transactions ~ 100 will run with Ganache-cli and will be part of CI Testing
     // ************************************************************* Test Strategy ******************************************************************
     // ganache-cli -a 110     -- Will be using the 100 Accounts from 10 to < 110
     // First Window -  100 Accounts will be staked with 10% opt out for Auto Renewal
     // Second Window - 10 common Accounts will be staked with 90 Accounts will be added reward & renewed 
-
+/*
     it("11. Stake Operations - Validation for large transactions - 1", async function() 
     {
 
@@ -1164,5 +1124,5 @@ console.log("i===", i);
             }
         }
     });
-
+*/
 });
