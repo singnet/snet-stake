@@ -43,7 +43,7 @@ contract TokenStakeV2 is Ownable{
 
     mapping (uint256 => StakePeriod) public stakeMap;
 
-    mapping (address => uint256[]) public stakerPeriodMap;
+    //mapping (address => uint256[]) public stakerPeriodMap;
 
     // All Stake Holders
     //address[] stakeHolders;
@@ -251,7 +251,7 @@ contract TokenStakeV2 is Ownable{
 
 // ----- ****** Sridhar ******* -- Check if this is still needed
             // Add the currentStakeMapIndex to Address
-            stakerPeriodMap[staker].push(currentStakeMapIndex);
+            //stakerPeriodMap[staker].push(currentStakeMapIndex);
 
         }
 
@@ -438,9 +438,9 @@ contract TokenStakeV2 is Ownable{
         return stakeMap[stakeMapIndex].stakeHolders;
     }
 
-    function getStakeHolderStakingPeriods(address staker) public view returns(uint256[] memory) {
-        return stakerPeriodMap[staker];
-    }
+//    function getStakeHolderStakingPeriods(address staker) public view returns(uint256[] memory) {
+//        return stakerPeriodMap[staker];
+//    }
 
     function getStakeInfo(uint256 stakeMapIndex, address staker) 
     public 

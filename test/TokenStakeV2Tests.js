@@ -24,6 +24,8 @@ async function testErrorRevert(prom)
   
 contract('TokenStakeV2', function(accounts) {
 
+console.log("Number of Accounts - ", accounts.length)
+
     var tokenStake;
     var tokenAddress;
     var token;
@@ -592,7 +594,7 @@ contract('TokenStakeV2', function(accounts) {
 
     });
 
-
+/*
     it("3. Stake Operations - Open Stake", async function() 
     {
 
@@ -882,8 +884,8 @@ contract('TokenStakeV2', function(accounts) {
         await claimStakeAndVerify(currentStakeMapIndex, accounts[8]);
 
     });
-
-
+*/
+/*
     it("9. Stake Operations - Validation of Supporting Fields", async function()
     {
 
@@ -921,7 +923,8 @@ contract('TokenStakeV2', function(accounts) {
         assert.equal(stakeHolders_A6.length, 1);
 
     });
-
+*/
+/*
     it("10. Stake Operations - No more active Stakes Withdrawals", async function() 
     {
 
@@ -933,6 +936,233 @@ contract('TokenStakeV2', function(accounts) {
         // Account 5 is enabled for AutoRenew
         await claimStakeAndVerify(currentStakeMapIndex, accounts[5]);
 
+    });
+
+*/
+    // Following Test cases are for capturing the Gas Usage for large set transactions ~ 100 will run with Ganache-cli and will be part of CI Testing
+    // ************************************************************* Test Strategy ******************************************************************
+    // ganache-cli -a 110     -- Will be using the 100 Accounts from 10 to < 110
+    // First Window -  100 Accounts will be staked with 10% opt out for Auto Renewal
+    // Second Window - 10 common Accounts will be staked with 90 Accounts will be added reward & renewed 
+
+    it("11. Stake Operations - Validation for large transactions - 1", async function() 
+    {
+
+        // Approve & Transfer tokens to the 100 Accounts
+        await approveTokensToContract(10, 109, GAmt);
+
+        // Get the start Period in Epoc Timestamp (In Secs)
+        const baseTime = Math.round(Date.now() / 1000);
+        const startPeriod = baseTime + 10;
+        const endSubmission = startPeriod + 420;
+        const endApproval = endSubmission + 60;
+        const requestWithdrawStartPeriod = endApproval + 90 
+        const endPeriod = requestWithdrawStartPeriod + 90;
+        const minStake          = 1     * 100000000; // Min = 1 AGI
+        const rewardAmount      = 100    * 100000000; // Reward = 30 AGI
+        const openForExternal = true;
+
+        // acocunts[9] is a Token Operator
+        await openStakeAndVerify(startPeriod, endSubmission, endApproval, requestWithdrawStartPeriod, endPeriod, rewardAmount, minStake, openForExternal, accounts[9]);
+
+    });
+
+
+    it("12. Stake Operations - Validation for large transactions - 2", async function() 
+    {
+
+        // Current Stake window Index
+        const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+
+        // Submit Stakes
+        const max = 100;
+        const autoRenewalYes = true;
+        const autoRenewalNo = false;
+
+        // Submit Stake
+        await sleep(await waitTimeInSlot("OPEN_FOR_SUBMISSION")); // Sleep to start the submissions
+
+        for(var i=10;i<110;i++) {
+console.log("i===", i);            
+            const stakeAmount =  getRandomNumber(max) * 100000000;
+            const reminder = i%10;
+            if(reminder == 1 || reminder == 2 || reminder == 3) {
+                await submitStakeAndVerify(stakeAmount, autoRenewalNo, accounts[i]);
+            } else {
+                await submitStakeAndVerify(stakeAmount, autoRenewalYes, accounts[i]);
+            }
+        }
+
+    });
+
+    it("13.1 Stake Operations - Validation for large transactions - 3 - OptIn", async function() 
+    {
+
+        const max = 100;
+        const autoRenewalYes = true;
+        const autoRenewalNo = false;
+
+        // Current Stake window Index
+        const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+
+        // Update Auto Renewal to True for 10 Account
+        await sleep(await waitTimeInSlot("OPEN_OPT_UPDATE")); // Sleep to get request for Withdrawal
+      
+        // OptIn in For Auto renewal
+        for(var j=10;j<110;j++) {
+            console.log("j===", j);            
+            const reminder = j%10;
+            if(reminder == 2 || reminder == 3) {
+                await updateAutoRenewalAndVerify(currentStakeMapIndex, autoRenewalYes, accounts[j]);
+            }
+        }
+
+    });
+
+    it("13.2 Stake Operations - Validation for large transactions - 3 - Claim", async function() 
+    {
+
+        const max = 100;
+        const autoRenewalYes = true;
+        const autoRenewalNo = false;
+
+        // Current Stake window Index
+        const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+        
+        // End Stake Period
+        await sleep(await waitTimeInSlot("END_STAKE")); // Sleep to elapse the Stake Period
+
+        // Claim the Stake for Opt Out Accounts
+        for(var z=10;z<110;z++) {
+            console.log("z===", z);            
+            const reminder = z%10;
+            if(reminder == 1) {
+                await claimStakeAndVerify(currentStakeMapIndex, accounts[z]);
+            }
+        }
+
+    });
+
+
+    it("14. Stake Operations - Validation for large transactions - 1", async function() 
+    {
+
+        // Get the start Period in Epoc Timestamp (In Secs)
+        const baseTime = Math.round(Date.now() / 1000);
+        const startPeriod = baseTime + 10;
+        const endSubmission = startPeriod + 90;
+        const endApproval = endSubmission + 60;
+        const requestWithdrawStartPeriod = endApproval + 360 
+        const endPeriod = requestWithdrawStartPeriod + 90;
+        const minStake          = 1     * 100000000; // Min = 1 AGI
+        const rewardAmount      = 100    * 100000000; // Reward = 30 AGI
+        const openForExternal = true;
+
+        // acocunts[9] is a Token Operator
+        await openStakeAndVerify(startPeriod, endSubmission, endApproval, requestWithdrawStartPeriod, endPeriod, rewardAmount, minStake, openForExternal, accounts[9]);
+
+    });
+
+    it("15. Stake Operations - Validation for large transactions - 2", async function() 
+    {        
+        // Current Stake window Index
+        const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+
+        // Submit Stakes
+        const max = 100;
+        const autoRenewalYes = true;
+        const autoRenewalNo = false;
+
+        // Submit Stake
+        await sleep(await waitTimeInSlot("OPEN_FOR_SUBMISSION")); // Sleep to start the submissions
+
+        for(var i=10;i<110;i++) {
+            console.log("i===", i);            
+            const stakeAmount =  getRandomNumber(max) * 100000000;
+            const reminder = i%10;
+            if(reminder == 0) {
+                await submitStakeAndVerify(stakeAmount, autoRenewalYes, accounts[i]);
+            }
+        }
+
+    });
+
+    it("16. Stake Operations - Validation for large transactions - 3 - Batch 1", async function() 
+    {        
+        // Current Stake window Index
+        const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+        const existingStakeMapIndex = currentStakeMapIndex - 1;
+
+        // Reward & Auto Renew Stake 
+        await sleep(await waitTimeInSlot("OPEN_REWARD_AUTO_RENEW")); // Sleep to start the reward & renewal
+        for(var r=10;r<50;r++) {
+            console.log("r===", r);
+            const reminder = r%10;
+            if(reminder != 1) {
+                await autoRenewStakeAndVerify(existingStakeMapIndex, accounts[r], accounts[9]);
+            }
+        }
+
+    });
+
+    it("16. Stake Operations - Validation for large transactions - 3 - Batch 2", async function() 
+    {        
+        // Current Stake window Index
+        const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+        const existingStakeMapIndex = currentStakeMapIndex - 1;
+
+        // Reward & Auto Renew Stake 
+        await sleep(await waitTimeInSlot("OPEN_REWARD_AUTO_RENEW")); // Sleep to start the reward & renewal
+        for(var r=50;r<110;r++) {
+            console.log("r===", r);
+            const reminder = r%10;
+            if(reminder != 1) {
+                await autoRenewStakeAndVerify(existingStakeMapIndex, accounts[r], accounts[9]);
+            }
+        }
+
+    });
+
+    it("17. Stake Operations - Validation for large transactions - 4 - OptOut", async function() 
+    {        
+        // Current Stake window Index
+        const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+        const existingStakeMapIndex = currentStakeMapIndex - 1;
+
+        const max = 100;
+        const autoRenewalYes = true;
+        const autoRenewalNo = false;
+
+        // Update Auto Renewal to True for 10 Account
+        await sleep(await waitTimeInSlot("OPEN_OPT_UPDATE")); // Sleep to get request for Withdrawal
+      
+        // request For Claim
+        for(var j=10;j<110;j++) {
+            console.log("j===", j);            
+            const reminder = j%10;
+            if(reminder == 2) {
+                await updateAutoRenewalAndVerify(currentStakeMapIndex, autoRenewalNo, accounts[j]);
+            }
+        }
+
+    });
+
+    it("18. Stake Operations - Validation for large transactions - 4 - OptOut", async function() 
+    {        
+        // Current Stake window Index
+        const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+
+        // End Stake Period
+        await sleep(await waitTimeInSlot("END_STAKE")); // Sleep to elapse the Stake Period
+
+        // Claim the Stake for Opt Out Accounts
+        for(var z=10;z<110;z++) {
+            console.log("z===", z);
+            const reminder = z%10;
+            if(reminder == 2) {
+                await claimStakeAndVerify(currentStakeMapIndex, accounts[z]);
+            }
+        }
     });
 
 });
