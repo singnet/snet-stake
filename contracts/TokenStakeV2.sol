@@ -37,17 +37,12 @@ contract TokenStakeV2 is Ownable{
         uint256 windowTotalStake;
         uint256 windowRewardAmount;
 
-        address[] stakeHolders;
-        //mapping(address => StakeInfo) stakeHolderInfo; 
+        address[] stakeHolders; 
     }
 
     mapping (uint256 => StakePeriod) public stakeMap;
 
-    //mapping (address => uint256[]) public stakerPeriodMap;
-
     // All Stake Holders
-    //address[] stakeHolders;
-    //mapping(address => StakeInfo) stakeHolderInfo; 
     mapping(address => mapping(uint256 => StakeInfo)) stakeHolderInfo;
 
 
@@ -249,10 +244,6 @@ contract TokenStakeV2 is Ownable{
             // Add to the Stake Holders List
             stakeMap[currentStakeMapIndex].stakeHolders.push(staker);
 
-// ----- ****** Sridhar ******* -- Check if this is still needed
-            // Add the currentStakeMapIndex to Address
-            //stakerPeriodMap[staker].push(currentStakeMapIndex);
-
         }
 
         return true;
@@ -437,10 +428,6 @@ contract TokenStakeV2 is Ownable{
     function getStakeHolders(uint256 stakeMapIndex) public view returns(address[] memory) {
         return stakeMap[stakeMapIndex].stakeHolders;
     }
-
-//    function getStakeHolderStakingPeriods(address staker) public view returns(uint256[] memory) {
-//        return stakerPeriodMap[staker];
-//    }
 
     function getStakeInfo(uint256 stakeMapIndex, address staker) 
     public 
