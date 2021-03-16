@@ -187,9 +187,8 @@ contract TokenStakeV2 is Ownable{
         require(_startPeriod >= now && _startPeriod < _submissionEndPeriod && _submissionEndPeriod < _approvalEndPeriod && _approvalEndPeriod < _requestWithdrawStartPeriod && _requestWithdrawStartPeriod < _endPeriod, "Invalid stake period");
         require(_windowRewardAmount > 0 && _minStake > 0, "Invalid inputs" );
 
-// ---- ***** Sridhar ****** - Need to check the following condition to enforce the non parallel openning of stake windows - new startPeriod >= existing requestWithdrawStartPeriod
         // Check Stake in Progress
-        require(currentStakeMapIndex == 0 || now > stakeMap[currentStakeMapIndex].approvalEndPeriod, "Cannot have more than one stake request at a time");
+        require(currentStakeMapIndex == 0 || (now > stakeMap[currentStakeMapIndex].approvalEndPeriod && _startPeriod >= stakeMap[currentStakeMapIndex].requestWithdrawStartPeriod), "Cannot have more than one stake request at a time");
 
         // Check for max days to open to avoid the locking to open a new stake
         require(now > _approvalEndPeriod.sub(maxDaysToOpenInSecs), "Too futuristic");
@@ -216,12 +215,9 @@ contract TokenStakeV2 is Ownable{
 
 
     // To add the Stake Holder
-    function _createStake(address staker, uint256 stakeAmount, bool autoRenewal, bool isCallFromAutoRenewal) internal returns(bool) {
+    function _createStake(address staker, uint256 stakeAmount, bool autoRenewal) internal returns(bool) {
 
         StakeInfo storage stakeInfo = stakeHolderInfo[staker][currentStakeMapIndex];
-
-
-// ------- ****** Sridhar ****** Check which Auto Renewal decision is preferred. See condition if (!isCallFromAutoRenewal ) { stakeInfo.autoRenewal = autoRenewal; } make sense
 
         // Check if the user already staked in the past
         if(stakeInfo.exist) {
@@ -257,7 +253,7 @@ contract TokenStakeV2 is Ownable{
         // Transfer the Tokens to Contract
         require(token.transferFrom(msg.sender, address(this), stakeAmount), "Unable to transfer token to the contract");
 
-        _createStake(msg.sender, stakeAmount, autoRenewal, false);
+        _createStake(msg.sender, stakeAmount, autoRenewal);
 
         // Update the User balance
         balances[msg.sender] = balances[msg.sender].add(stakeAmount);
@@ -378,7 +374,7 @@ contract TokenStakeV2 is Ownable{
         totalAmount = oldStakeInfo.approvedAmount.add(rewardAmount);
 
         // Create a new stake in current staking period
-        _createStake(staker, totalAmount, oldStakeInfo.autoRenewal, true);
+        _createStake(staker, totalAmount, oldStakeInfo.autoRenewal);
 
         // Update current stake period total stake
         stakeMap[currentStakeMapIndex].windowTotalStake = stakeMap[currentStakeMapIndex].windowTotalStake.add(totalAmount);
