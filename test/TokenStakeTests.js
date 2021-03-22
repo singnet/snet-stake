@@ -647,7 +647,7 @@ contract('TokenStake', function(accounts) {
         }
 
     // ************************ Test Scenarios Starts From Here ********************************************
-
+/*
     it("0. Initial Account Setup - Transfer & Approve Tokens", async function() 
     {
         // accounts[0] -> Contract Owner
@@ -684,7 +684,7 @@ contract('TokenStake', function(accounts) {
         await testErrorRevert(tokenStake.updateOperator(accounts[8], {from:accounts[9]}));
 
     });
-
+*/
 /*
     it("3. Stake Operations - Open Stake", async function() 
     {
