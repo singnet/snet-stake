@@ -372,6 +372,7 @@ contract TokenStakeV3 is Ownable{
     function computeAndAddReward(uint256 stakeMapIndex, address staker) 
     public 
     onlyOperator
+    returns(bool)
     {
 
         // Check for the Incubation Period
@@ -408,6 +409,16 @@ contract TokenStakeV3 is Ownable{
 
         emit AddReward(staker, stakeMapIndex, tokenOperator, totalAmount, rewardAmount);
 
+        return true;
+    }
+
+    function updateRewards(uint256 stakeMapIndex, address[] memory staker) 
+    public 
+    onlyOperator
+    {
+        for(uint256 indx = 0; indx < staker.length; indx++) {
+            require(computeAndAddReward(stakeMapIndex, staker[indx]));
+        }
     }
 
     // To claim from the stake window
@@ -448,7 +459,7 @@ contract TokenStakeV3 is Ownable{
 
 
     // Getter Functions    
-    function getStakeHolders(uint256 stakeMapIndex) public view returns(address[] memory) {
+    function getStakeHolders() public view returns(address[] memory) {
         return stakeHolders;
     }
 

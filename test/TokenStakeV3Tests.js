@@ -979,9 +979,13 @@ console.log("Number of Accounts - ", accounts.length)
         await testErrorRevert(tokenStake.computeAndAddReward(currentStakeMapIndex, accounts[5], {from:accounts[5]}));
 
         // Can be performed only by Token Operator -- Account - 9
-        await computeAndAddRewardAndVerify(currentStakeMapIndex, accounts[5], accounts[9]);
-        await computeAndAddRewardAndVerify(currentStakeMapIndex, accounts[7], accounts[9]);
-        await computeAndAddRewardAndVerify(currentStakeMapIndex, accounts[8], accounts[9]);
+        //await computeAndAddRewardAndVerify(currentStakeMapIndex, accounts[5], accounts[9]);
+        //await computeAndAddRewardAndVerify(currentStakeMapIndex, accounts[7], accounts[9]);
+        //await computeAndAddRewardAndVerify(currentStakeMapIndex, accounts[8], accounts[9]);
+
+        // Execute all the Rewards in one shot
+        const stakers = [accounts[5], accounts[7], accounts[8]];
+        await tokenStake.updateRewards(currentStakeMapIndex, stakers, {from:accounts[9]});
 
         await sleep(await waitTimeInSlot("OPEN_OPT_UPDATE")); // Sleep to get request for Withdrawal
 
@@ -1016,6 +1020,7 @@ console.log("Number of Accounts - ", accounts.length)
     });
 
 
+
     // Following Test cases are for capturing the Gas Usage for large set transactions ~ 100 will run with Ganache-cli and will be part of CI Testing
     // ************************************************************* Test Strategy ******************************************************************
     // ganache-cli -a 110     -- Will be using the 100 Accounts from 10 to < 110
@@ -1034,7 +1039,7 @@ console.log("Number of Accounts - ", accounts.length)
         const startPeriod = baseTime + 10;
         const endSubmission = startPeriod + 450;
         const endApproval = endSubmission + 60;
-        const requestWithdrawStartPeriod = endApproval + 450 
+        const requestWithdrawStartPeriod = endApproval + 60; //450 
         const endPeriod = requestWithdrawStartPeriod + 90;
         const minStake          = 1     * 100000000; // Min = 1 AGI
         const rewardAmount      = 100    * 100000000; // Reward = 30 AGI
@@ -1080,10 +1085,14 @@ console.log("i===", i);
 
         // Add Reward 
         await sleep(await waitTimeInSlot("OPEN_REWARD_AUTO_RENEW")); // Sleep to start the reward & renewal
+        let stakers = []
         for(var r=10;r<50;r++) {
             console.log("r===", r);
-            await computeAndAddRewardAndVerify(currentStakeMapIndex, accounts[r], accounts[9]);
+            //await computeAndAddRewardAndVerify(currentStakeMapIndex, accounts[r], accounts[9]);
+            stakers.push(accounts[r]);
         }
+        // Execute all rewards in one shot
+        await tokenStake.updateRewards(currentStakeMapIndex, stakers, {from:accounts[9]});
 
     });
 
@@ -1092,11 +1101,16 @@ console.log("i===", i);
         // Current Stake window Index
         const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
 
+        let stakers = []
         // Add Reward
         for(var r=50;r<110;r++) {
             console.log("r===", r);
-            await computeAndAddRewardAndVerify(currentStakeMapIndex, accounts[r], accounts[9]);
+            //await computeAndAddRewardAndVerify(currentStakeMapIndex, accounts[r], accounts[9]);
+            stakers.push(accounts[r]);
         }
+
+        // Execute all rewards in one shot
+        await tokenStake.updateRewards(currentStakeMapIndex, stakers, {from:accounts[9]});
 
     });
 
