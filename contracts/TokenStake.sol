@@ -64,7 +64,7 @@ contract TokenStake is Ownable{
     event UpdateAutoRenewal(uint256 indexed stakeIndex, address indexed staker, bool autoRenewal);
     event ClaimStake(uint256 indexed stakeIndex, address indexed staker, uint256 totalAmount);   
     event RejectStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator, uint256 returnAmount);
-    event AddReward(address indexed staker, uint256 indexed stakeIndex, address tokenOperator, uint256 totalStakeAmount, uint256 rewardAmount);
+    event AddReward(address indexed staker, uint256 indexed stakeIndex, address tokenOperator, uint256 totalStakeAmount, uint256 rewardAmount, uint256 windowTotalStake);
     event WithdrawStake(uint256 indexed stakeIndex, address indexed staker, uint256 stakeAmount);
 
 
@@ -407,7 +407,7 @@ contract TokenStake is Ownable{
         // Update the User Balance
         balances[staker] = balances[staker].add(rewardAmount);
 
-        emit AddReward(staker, stakeMapIndex, tokenOperator, totalAmount, rewardAmount);
+        emit AddReward(staker, stakeMapIndex, tokenOperator, totalAmount, rewardAmount, windowTotalStake);
 
         return true;
     }
