@@ -654,6 +654,72 @@ console.log("Number of Accounts - ", accounts.length)
         }
 
 
+        const migrateStakeWindowAndVerify = async(_startPeriod, _endSubmission, _endApproval, _requestWithdrawStartPeriod, _endPeriod, _rewardAmount, _minStake, _openForExternal, _account) => {
+
+            const currentStakeMapIndex_b = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+
+            const windowTotalStake_b = (await tokenStake.windowTotalStake.call()).toNumber();
+
+            // Add Past Stake Windows
+            await tokenStake.migrateStakeWindow(_startPeriod, _endSubmission, _endApproval, _requestWithdrawStartPeriod, _endPeriod, _rewardAmount, _minStake, _openForExternal, {from:_account});
+
+            const currentStakeMapIndex_a = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+            
+            const {startPeriod: startPeriod_a, submissionEndPeriod: submissionEndPeriod_a, approvalEndPeriod: approvalEndPeriod_a, requestWithdrawStartPeriod: requestWithdrawStartPeriod_a, endPeriod: endPeriod_a, minStake: minStake_a, openForExternal: openForExternal_a, windowRewardAmount: windowRewardAmount_a, stakeHolders: stakeHolders_a}
+            = await tokenStake.stakeMap.call(currentStakeMapIndex_a);
+
+            const windowTotalStake_a = (await tokenStake.windowTotalStake.call()).toNumber();
+
+            // Test the Stake Map Index
+            assert.equal(currentStakeMapIndex_a, currentStakeMapIndex_b + 1);
+
+            // Test the Staking Period Configurations
+            assert.equal(startPeriod_a.toNumber(), _startPeriod);
+            assert.equal(submissionEndPeriod_a.toNumber(), _endSubmission);
+            assert.equal(approvalEndPeriod_a.toNumber(), _endApproval);
+            assert.equal(requestWithdrawStartPeriod_a.toNumber(), _requestWithdrawStartPeriod);
+            assert.equal(endPeriod_a.toNumber(), _endPeriod);
+            assert.equal(minStake_a.toNumber(), _minStake);
+            assert.equal(openForExternal_a, _openForExternal);
+            assert.equal(windowRewardAmount_a.toNumber(), _rewardAmount);
+            
+            // There should not be any change to the Window Total Stake
+            assert.equal(windowTotalStake_a, windowTotalStake_b);
+            
+        }
+
+
+        // Migrate multiple stakers from previous window
+        const migrateStakesAndVerify = async(existingStakeMapIndex, _stakers,_stakeAmounts, _account) => {
+
+
+            const windowTotalStake_b = (await tokenStake.windowTotalStake.call()).toNumber();
+
+            // Add Past Stake Windows
+            await tokenStake.migrateStakes(existingStakeMapIndex, _stakers, _stakeAmounts, {from:_account});            
+
+
+            const windowTotalStake_a = (await tokenStake.windowTotalStake.call()).toNumber();
+
+            // All the stakers balance to be same as migrated stakeAmount
+            let stakersBalInContract = [];
+            let totalStakeMigrated = 0;
+            for(var i=0; i<_stakers.length;i++) {
+                const bal = (await tokenStake.balances(_stakers[i])).toNumber();
+                stakersBalInContract.push(bal);
+
+                totalStakeMigrated = totalStakeMigrated + bal;
+            }
+            assert.deepStrictEqual(_stakeAmounts, stakersBalInContract);
+
+            // Window Total Stake Amount should be with the total amount migrated
+            assert.equal(windowTotalStake_a, windowTotalStake_b + totalStakeMigrated);
+
+        }
+
+
+
+
     // ************************ Test Scenarios Starts From Here ********************************************
 
     it("0. Initial Account Setup - Transfer & Approve Tokens", async function() 
@@ -661,6 +727,9 @@ console.log("Number of Accounts - ", accounts.length)
         // accounts[0] -> Contract Owner
         // accounts[1] to accounts[8] -> Token Stakers
         // accounts[9] -> Token Operator
+
+        // An explicit call is required to mint the tokens for AGI-II
+        //await token.mint(accounts[0], GAmt, {from:accounts[0]});
 
         await approveTokensToContract(1, 9, GAmt);
 
@@ -693,6 +762,72 @@ console.log("Number of Accounts - ", accounts.length)
 
     });
 
+    it("2.1 Migration Operations - Migrate past stake windows", async function() 
+    {
+
+        // Sample Past Stake windows - Picked from Production
+        const startPeriod = [1586250000 , 1588842000 , 1591434000 , 1594026000 , 1596618000 , 1599210000 , 1601888400 , 1604566800 , 1607245200 , 1609923600 , 1612602000]
+        const endSubmission = [1586854800 , 1589475600 , 1592067600 , 1594659600 , 1597251600 , 1599847200 , 1602525600 , 1605204000 , 1607882400 , 1610560800 , 1613239200]
+        const endApproval = [1586883600 , 1589504400 , 1592096400 , 1594688400 , 1597280400 , 1599876000 , 1602554400 , 1605232800 , 1607911200 , 1610589600 , 1613268000]
+        const requestWithdrawStartPeriod = [1588842000 , 1591434000 , 1594026000 , 1596618000 , 1599210000 , 1601802000 , 1604480400 , 1607158800 , 1609837200 , 1612515600 , 1615194000]
+        const endPeriod = [1589446800 , 1592038800 , 1594630800 , 1597222800 , 1599814800 , 1602406800 , 1605085200 , 1607763600 , 1610442000 , 1613120400 , 1615798800]
+        
+        const minStake          = 1     * 100000000; // Min = 1 AGI
+        const rewardAmount      = 30    * 100000000; // Reward = 30 AGI
+        const openForExternal = true;
+
+        // acocunts[9] is a Token Operator
+        for(var i=0;i<startPeriod.length;i++) {
+            await migrateStakeWindowAndVerify(startPeriod[i], endSubmission[i], endApproval[i], requestWithdrawStartPeriod[i], endPeriod[i], rewardAmount, minStake, openForExternal, accounts[9]);
+        }
+        
+
+    });
+
+
+    it("2.2 Migration Operations - Migrate running stake window & Migrate Stakes", async function() 
+    {
+
+        // Sample Past Stake window - Which is in running state
+        // Get the start Period in Epoc Timestamp (In Secs)
+        const baseTime = Math.round(Date.now() / 1000);
+        const startPeriod = baseTime - 100;
+        const endSubmission = startPeriod + 80;
+        const endApproval = endSubmission + 30;
+        const requestWithdrawStartPeriod = endApproval + 50 
+        const endPeriod = requestWithdrawStartPeriod + 20;
+        const minStake          = 1     * 100000000; // Min = 1 AGI
+        const rewardAmount      = 30    * 100000000; // Reward = 30 AGI
+        const openForExternal = true;
+
+        // acocunts[9] is a Token Operator
+        await migrateStakeWindowAndVerify(startPeriod, endSubmission, endApproval, requestWithdrawStartPeriod, endPeriod, rewardAmount, minStake, openForExternal, accounts[9]);
+
+        // Simulating the migration stakes for accounts - 1,2,3,4,5 which include reward as well
+        const stakeAmount_a1 =  35 * 100000000;
+        const stakeAmount_a2 =  50 * 100000000;
+        const stakeAmount_a3 =  90 * 100000000;
+        const stakeAmount_a4 =  110 * 100000000;
+        const stakeAmount_a5 =  80 * 100000000;
+
+        const totalStakeMigrated = 365 * 100000000;
+
+        const stakersToMigrate = [accounts[1], accounts[2], accounts[3], accounts[4], accounts[5]]
+        const stakeAmountToMigrate = [stakeAmount_a1, stakeAmount_a2, stakeAmount_a3, stakeAmount_a4, stakeAmount_a5 ]
+
+        // Migrate Stakes
+        const currentStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
+        await migrateStakesAndVerify(currentStakeMapIndex, stakersToMigrate, stakeAmountToMigrate, accounts[9]);
+
+        // Deposit the reward amount to the contract
+        await depositTokenAndVerify(totalStakeMigrated , accounts[9]);
+
+
+        // Make sure that the window is closed for the sub sequent test to follow varios scenarios
+        // End Stake Period
+        await sleep(await waitTimeInSlot("END_STAKE")); // Sleep to elapse the Stake Period
+
+    });
 
     it("3. Stake Operations - Open Stake", async function() 
     {
@@ -863,7 +998,7 @@ console.log("Number of Accounts - ", accounts.length)
     {
 
         // Always the stake window starts with 1 not with Zero
-        const existingStakeMapIndex = 1;
+        const existingStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
 
         // Get the start Period in Epoc Timestamp (In Secs)
         const baseTime = Math.round(Date.now() / 1000);
@@ -932,7 +1067,7 @@ console.log("Number of Accounts - ", accounts.length)
 
     it("8. Stake Operations - New Stake For Auto Renewals", async function() {
 
-        const existingStakeMapIndex = 2;
+        const existingStakeMapIndex = (await tokenStake.currentStakeMapIndex.call()).toNumber();
 
         // Get the start Period in Epoc Timestamp (In Secs)
         const baseTime = Math.round(Date.now() / 1000);
@@ -1021,11 +1156,11 @@ console.log("Number of Accounts - ", accounts.length)
 
 
 
-    // Following Test cases are for capturing the Gas Usage for large set transactions ~ 100 will run with Ganache-cli and will be part of CI Testing
-    // ************************************************************* Test Strategy ******************************************************************
+    // Following Test cases are for capturing the Gas Usage for large set of transactions ~ 100 will run with Ganache-cli and will not be part of CI Testing
+    // *************************************************************** Test Strategy ************************************************************************
     // ganache-cli -a 110     -- Will be using the 100 Accounts from 10 to < 110
     // First Window -  100 Accounts will be staked with 10% opt out for Auto Renewal
-    // Second Window - 10 common Accounts will be staked with 90 Accounts will be added reward & renewed 
+    // Second Window - 10 common Accounts will be staked with 90 Accounts will be added reward
 
 /*
     it("11. Stake Operations - Validation for large transactions - 1", async function() 

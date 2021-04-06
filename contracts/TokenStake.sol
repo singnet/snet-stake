@@ -458,6 +458,73 @@ contract TokenStake is Ownable{
     }
 
 
+    // Migration - Load existing Stake Windows & Stakers
+    function migrateStakeWindow(uint256 _startPeriod, uint256 _submissionEndPeriod,  uint256 _approvalEndPeriod, uint256 _requestWithdrawStartPeriod, uint256 _endPeriod, uint256 _windowRewardAmount, uint256 _minStake, bool _openForExternal) public onlyOperator {
+
+        // Add check for Block Number to restrict migration after certain block number
+
+        // Check Input Parameters for past stake windows
+        require(now > _startPeriod && _startPeriod < _submissionEndPeriod && _submissionEndPeriod < _approvalEndPeriod && _approvalEndPeriod < _requestWithdrawStartPeriod && _requestWithdrawStartPeriod < _endPeriod, "Invalid stake period");
+        require(_windowRewardAmount > 0 && _minStake > 0, "Invalid inputs" );
+
+        // Move the staking period to next one
+        currentStakeMapIndex = currentStakeMapIndex + 1;
+        StakePeriod memory stakePeriod;
+
+        // Set Staking attributes
+        stakePeriod.startPeriod = _startPeriod;
+        stakePeriod.submissionEndPeriod = _submissionEndPeriod;
+        stakePeriod.approvalEndPeriod = _approvalEndPeriod;
+        stakePeriod.requestWithdrawStartPeriod = _requestWithdrawStartPeriod;
+        stakePeriod.endPeriod = _endPeriod;
+        stakePeriod.windowRewardAmount = _windowRewardAmount;
+        stakePeriod.minStake = _minStake;        
+        stakePeriod.openForExternal = _openForExternal;
+
+        stakeMap[currentStakeMapIndex] = stakePeriod;
+
+
+    }
+
+
+    // Migration - Load existing stakes along with computed reward
+    function migrateStakes(uint256 stakeMapIndex, address[] memory staker, uint256[] memory stakeAmount) public onlyOperator {
+
+        // Add check for Block Number to restrict migration after certain block number
+
+        // Check Input Parameters
+        require(staker.length == stakeAmount.length, "Invalid Input Arrays");
+
+        // Stakers should be for current window
+        require(currentStakeMapIndex == stakeMapIndex, "Invalid Stake Window Index");
+
+        for(uint256 indx = 0; indx < staker.length; indx++) {
+
+            StakeInfo memory req;
+
+            // Create a stake request with approvedAmount
+            req.exist = true;
+            req.pendingForApprovalAmount = 0;
+            req.approvedAmount = stakeAmount[indx];
+            req.rewardComputeIndex = stakeMapIndex;
+
+            // Add to the Stake Holders List
+            stakeHolderInfo[staker[indx]] = req;
+
+            // Add to the Stake Holders List
+            stakeHolders.push(staker[indx]);
+
+            // Update the User balance
+            balances[staker[indx]] = stakeAmount[indx];
+
+            // Update current stake period total stake - Along with Reward
+            windowTotalStake = windowTotalStake.add(stakeAmount[indx]);
+
+        }
+
+    }
+
+
     // Getter Functions    
     function getStakeHolders() public view returns(address[] memory) {
         return stakeHolders;
