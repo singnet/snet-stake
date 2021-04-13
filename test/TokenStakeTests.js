@@ -848,23 +848,23 @@ console.log("Number of Accounts - ", accounts.length)
 
         // Non Token Operator should allow to open for staking
         await testErrorRevert(tokenStake.openForStake(startPeriod, endSubmission, endApproval, requestWithdrawStartPeriod, endPeriod, rewardAmount, minStake, openForExternal, {from:accounts[1]}));
-        
+
         // Improper Staking Period - Should Fail
         await testErrorRevert(tokenStake.openForStake(startPeriod, endSubmission, endApproval, requestWithdrawStartPeriod, endPeriod - 40, rewardAmount, minStake, openForExternal, {from:accounts[9]}));
 
         // Non Operator try to update the Max Days to Open to open - Should Fail
-        await testErrorRevert(tokenStake.updateMaxDaysToOpen(60, {from:accounts[1]}));
+        //await testErrorRevert(tokenStake.updateMaxDaysToOpen(60, {from:accounts[1]}));
 
         // Update the Max Days to Open to 60 Days
-        await updateMaxDaysToOpenAndVeryfy(60, accounts[9]);
+        //await updateMaxDaysToOpenAndVeryfy(60, accounts[9]);
 
         // Try to Open Stake after 60 days - should fail
-        const maxDaysToOpenInSecs = 90 * 24 * 60 * 60;
-        await testErrorRevert(tokenStake.openForStake(parseInt(startPeriod) + maxDaysToOpenInSecs, parseInt(endSubmission) + maxDaysToOpenInSecs, parseInt(endApproval) + maxDaysToOpenInSecs, parseInt(requestWithdrawStartPeriod) + maxDaysToOpenInSecs, parseInt(endPeriod) + maxDaysToOpenInSecs, rewardAmount, minStake, openForExternal, {from:accounts[9]}));
+        //const maxDaysToOpenInSecs = 90 * 24 * 60 * 60;
+        //await testErrorRevert(tokenStake.openForStake(parseInt(startPeriod) + maxDaysToOpenInSecs, parseInt(endSubmission) + maxDaysToOpenInSecs, parseInt(endApproval) + maxDaysToOpenInSecs, parseInt(requestWithdrawStartPeriod) + maxDaysToOpenInSecs, parseInt(endPeriod) + maxDaysToOpenInSecs, rewardAmount, minStake, openForExternal, {from:accounts[9]}));
 
         // acocunts[9] is a Token Operator
         await openStakeAndVerify(startPeriod, endSubmission, endApproval, requestWithdrawStartPeriod, endPeriod, rewardAmount, minStake, openForExternal, accounts[9]);
-        
+
         // While Staking is in progress no addition open stake request should allow
         await testErrorRevert(tokenStake.openForStake(startPeriod + 86400, endSubmission + 86400, endApproval + 86400, requestWithdrawStartPeriod + 86400, endPeriod + 86400, rewardAmount, minStake, openForExternal, {from:accounts[9]}));
 
@@ -1153,7 +1153,6 @@ console.log("Number of Accounts - ", accounts.length)
         //await displayCurrentStateOfContract();        
 
     });
-
 
 
     // Following Test cases are for capturing the Gas Usage for large set of transactions ~ 100 will run with Ganache-cli and will not be part of CI Testing
