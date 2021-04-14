@@ -11,6 +11,8 @@ contract TokenStake is Ownable{
     ERC20 public token; // Address of token contract
     address public tokenOperator; // Address to manage the Stake 
 
+    uint256 public maxMigrationBlocks; // Block numbers to complete the migration
+
     mapping (address => uint256) public balances; // Useer Token balance in the contract
 
     uint256 public currentStakeMapIndex; // Current Stake Index to avoid math calc in all methods
@@ -129,13 +131,14 @@ contract TokenStake is Ownable{
 
     }
 
-    constructor(address _token)
+    constructor(address _token, uint256 _maxMigrationBlocks)
     public
     {
         token = ERC20(_token);
         tokenOperator = msg.sender;
         currentStakeMapIndex = 0;
         windowTotalStake = 0;
+        maxMigrationBlocks = _maxMigrationBlocks.add(block.number); 
     }
 
     function updateOperator(address newOperator) public onlyOwner {
@@ -450,6 +453,7 @@ contract TokenStake is Ownable{
     function migrateStakeWindow(uint256 _startPeriod, uint256 _submissionEndPeriod,  uint256 _approvalEndPeriod, uint256 _requestWithdrawStartPeriod, uint256 _endPeriod, uint256 _windowRewardAmount, uint256 _minStake, bool _openForExternal) public onlyOperator {
 
         // Add check for Block Number to restrict migration after certain block number
+        require(block.number < maxMigrationBlocks, "Exceeds migration phase");
 
         // Check Input Parameters for past stake windows
         require(now > _startPeriod && _startPeriod < _submissionEndPeriod && _submissionEndPeriod < _approvalEndPeriod && _approvalEndPeriod < _requestWithdrawStartPeriod && _requestWithdrawStartPeriod < _endPeriod, "Invalid stake period");
@@ -479,6 +483,7 @@ contract TokenStake is Ownable{
     function migrateStakes(uint256 stakeMapIndex, address[] memory staker, uint256[] memory stakeAmount) public onlyOperator {
 
         // Add check for Block Number to restrict migration after certain block number
+        require(block.number < maxMigrationBlocks, "Exceeds migration phase");
 
         // Check Input Parameters
         require(staker.length == stakeAmount.length, "Invalid Input Arrays");

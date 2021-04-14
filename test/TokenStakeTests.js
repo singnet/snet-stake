@@ -45,9 +45,11 @@ console.log("Number of Accounts - ", accounts.length)
             tokenStake = await TokenStake.deployed();
             tokenAddress = await tokenStake.token.call();
             token = await Token.at(tokenAddress);
+
+            //console.log("Current Block number - ", (await web3.eth.getBlockNumber()));
+            //console.log("maxMigrationBlocks - ", (await tokenStake.maxMigrationBlocks.call()).toNumber());
+
         });
-
-
 
         const approveTokensToContract = async(_startAccountIndex, _endAccountIndex, _depositAmt) => {
             // Transfer & Approve amount for respective accounts to Contract Address
