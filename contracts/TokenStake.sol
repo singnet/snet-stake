@@ -62,7 +62,7 @@ contract TokenStake is Ownable{
 
     event OpenForStake(uint256 indexed stakeIndex, address indexed tokenOperator, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 rewardAmount);
     event SubmitStake(uint256 indexed stakeIndex, address indexed staker, uint256 stakeAmount);
-    event UpdateAutoRenewal(uint256 indexed stakeIndex, address indexed staker, bool autoRenewal);
+    event RequestForClaim(uint256 indexed stakeIndex, address indexed staker, bool autoRenewal);
     event ClaimStake(uint256 indexed stakeIndex, address indexed staker, uint256 totalAmount);   
     event RejectStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator, uint256 returnAmount);
     event AddReward(address indexed staker, uint256 indexed stakeIndex, address tokenOperator, uint256 totalStakeAmount, uint256 rewardAmount, uint256 windowTotalStake);
@@ -107,7 +107,7 @@ contract TokenStake is Ownable{
     }
 
     // Check for auto renewal flag update
-    modifier canUpdateAutoRenewal(uint256 stakeMapIndex) {
+    modifier canRequestForClaim(uint256 stakeMapIndex) {
         require(
             (stakeHolderInfo[msg.sender].approvedAmount > 0 || stakeHolderInfo[msg.sender].claimableAmount[stakeMapIndex] > 0) &&  
             now >= stakeMap[stakeMapIndex].requestWithdrawStartPeriod &&
@@ -320,8 +320,8 @@ contract TokenStake is Ownable{
 
     }
 
-    // To update the Auto Renewal flag
-    function updateAutoRenewal(uint256 stakeMapIndex, bool autoRenewal) public canUpdateAutoRenewal(stakeMapIndex) {
+    // To update the Auto Renewal - OptIn or OptOut for next stake window
+    function requestForClaim(uint256 stakeMapIndex, bool autoRenewal) public canRequestForClaim(stakeMapIndex) {
 
         StakeInfo storage stakeInfo = stakeHolderInfo[msg.sender];
 
@@ -346,7 +346,7 @@ contract TokenStake is Ownable{
 
         }
 
-        emit UpdateAutoRenewal(stakeMapIndex, msg.sender, autoRenewal);
+        emit RequestForClaim(stakeMapIndex, msg.sender, autoRenewal);
 
     }
 

@@ -249,7 +249,7 @@ console.log("Number of Accounts - ", accounts.length)
 
         }
 
-        const updateAutoRenewalAndVerify = async (_stakeMapIndex, _autoRenew, _account) => {
+        const requestForClaimAndVerify = async (_stakeMapIndex, _autoRenew, _account) => {
 
 
             const {found: found_b, approvedAmount: approvedAmount_b, pendingForApprovalAmount: pendingForApprovalAmount_b, rewardComputeIndex: rewardComputeIndex_b, claimableAmount: claimableAmount_b}
@@ -258,7 +258,7 @@ console.log("Number of Accounts - ", accounts.length)
             const windowTotalStake_b = (await tokenStake.windowTotalStake.call()).toNumber();
 
             // Call request for Withdraw Stake
-            await tokenStake.updateAutoRenewal(_stakeMapIndex, _autoRenew, {from:_account});
+            await tokenStake.requestForClaim(_stakeMapIndex, _autoRenew, {from:_account});
 
             const {found: found_a, approvedAmount: approvedAmount_a, pendingForApprovalAmount: pendingForApprovalAmount_a, rewardComputeIndex: rewardComputeIndex_a, claimableAmount: claimableAmount_a}
             = await tokenStake.getStakeInfo.call(_stakeMapIndex, _account);
@@ -935,8 +935,8 @@ console.log("Number of Accounts - ", accounts.length)
     
         // request For Claim
         const autoRenew = false;
-        await updateAutoRenewalAndVerify(currentStakeMapIndex, autoRenew, accounts[3]);
-        await updateAutoRenewalAndVerify(currentStakeMapIndex, autoRenew, accounts[1]);
+        await requestForClaimAndVerify(currentStakeMapIndex, autoRenew, accounts[3]);
+        await requestForClaimAndVerify(currentStakeMapIndex, autoRenew, accounts[1]);
 
         // End Stake Period
         await sleep(await waitTimeInSlot("END_STAKE")); // Sleep to elapse the Stake Period
@@ -1049,7 +1049,7 @@ console.log("Number of Accounts - ", accounts.length)
     
         // request For Claim
         const autoRenew = false;
-        await updateAutoRenewalAndVerify(currentStakeMapIndex, autoRenew, accounts[6]);
+        await requestForClaimAndVerify(currentStakeMapIndex, autoRenew, accounts[6]);
 
         // End Stake Period
         await sleep(await waitTimeInSlot("END_STAKE")); // Sleep to elapse the Stake Period
@@ -1127,7 +1127,7 @@ console.log("Number of Accounts - ", accounts.length)
         await sleep(await waitTimeInSlot("OPEN_OPT_UPDATE")); // Sleep to get request for Withdrawal
 
         // request For Claim
-        await updateAutoRenewalAndVerify(currentStakeMapIndex, autoRenewalNo, accounts[8]);
+        await requestForClaimAndVerify(currentStakeMapIndex, autoRenewalNo, accounts[8]);
 
         // End Stake Period
         await sleep(await waitTimeInSlot("END_STAKE")); // Sleep to elapse the Stake Period
@@ -1268,7 +1268,7 @@ console.log("i===", i);
             console.log("j===", j);            
             const reminder = j%10;
             if(reminder == 1) {
-                await updateAutoRenewalAndVerify(currentStakeMapIndex, autoRenewalNo, accounts[j]);
+                await requestForClaimAndVerify(currentStakeMapIndex, autoRenewalNo, accounts[j]);
             }
         }
 
@@ -1392,7 +1392,7 @@ console.log("i===", i);
             console.log("j===", j);            
             const reminder = j%10;
             if(reminder == 2) {
-                await updateAutoRenewalAndVerify(currentStakeMapIndex, autoRenewalNo, accounts[j]);
+                await requestForClaimAndVerify(currentStakeMapIndex, autoRenewalNo, accounts[j]);
             }
         }
 
