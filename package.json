@@ -24,11 +24,11 @@
   },
   "homepage": "https://github.com/singnet/snet-stake.git#readme",
   "dependencies": {
-    "openzeppelin-solidity": "1.11.0",
+    "@openzeppelin/contracts": "^3.2.0",
+    "@truffle/contract": "^4.2.23",
+    "@truffle/hdwallet-provider": "^1.1.0",
     "singularitynet-token-contracts": "2.0.1",
-    "truffle": "4.1.13",
-    "truffle-contract": "3.0.6",
-    "truffle-hdwallet-provider": "0.0.5"
+    "truffle": "5.1.46"
   },
   "devDependencies": {
     "chai": "^4.2.0",
