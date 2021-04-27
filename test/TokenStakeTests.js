@@ -378,7 +378,8 @@ console.log("Number of Accounts - ", accounts.length)
             const contract_bal_b = (await token.balanceOf(tokenStake.address)).toNumber();
 
             // Call Withdraw Stake
-            await tokenStake.depositToken(_amount, {from:_account});
+            // await tokenStake.depositToken(_amount, {from:_account});
+            await token.transfer(tokenStake.address,  _amount, {from:_account});
 
             // Token Balance
             const wallet_bal_a = (await token.balanceOf(_account)).toNumber();
@@ -992,7 +993,7 @@ console.log("Number of Accounts - ", accounts.length)
         await testErrorRevert(tokenStake.withdrawToken(withdrawAmount, {from:accounts[0]}));
 
         // Depositing tokens to pool with Owner Account - Should Fail
-        await testErrorRevert(tokenStake.depositToken(depositAmount, {from:accounts[0]}));
+        //await testErrorRevert(tokenStake.depositToken(depositAmount, {from:accounts[0]}));
         
     });
 
