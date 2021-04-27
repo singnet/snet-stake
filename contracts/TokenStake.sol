@@ -1,4 +1,4 @@
-pragma solidity >=0.4.22 <0.8.0;
+pragma solidity ^0.6.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -58,7 +58,6 @@ contract TokenStake is Ownable{
     event NewOperator(address tokenOperator);
 
     event WithdrawToken(address indexed tokenOperator, uint256 amount);
-    event DepositToken(address indexed tokenOperator, uint256 amount);
 
     event OpenForStake(uint256 indexed stakeIndex, address indexed tokenOperator, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 rewardAmount);
     event SubmitStake(uint256 indexed stakeIndex, address indexed staker, uint256 stakeAmount);
@@ -148,15 +147,6 @@ contract TokenStake is Ownable{
         tokenOperator = newOperator;
 
         emit NewOperator(newOperator);
-    }
-
-    function depositToken(uint256 value) public onlyOperator {
-
-        // Input validation are in place in token contract
-        require(token.transferFrom(msg.sender, address(this), value), "Unable to transfer token to the contract"); 
-
-        emit DepositToken(tokenOperator, value);
-
     }
     
     function withdrawToken(uint256 value) public onlyOperator
@@ -294,7 +284,7 @@ contract TokenStake is Ownable{
     function rejectStake(uint256 stakeMapIndex, address staker) public onlyOperator {
 
         // Allow for rejection after approval period as well
-        require(now > stakeMap[stakeMapIndex].submissionEndPeriod, "Rejection at this point is not allowed");
+        require(now > stakeMap[stakeMapIndex].submissionEndPeriod && currentStakeMapIndex == stakeMapIndex, "Rejection at this point is not allowed");
 
         StakeInfo storage stakeInfo = stakeHolderInfo[staker];
 
@@ -403,8 +393,8 @@ contract TokenStake is Ownable{
         return true;
     }
 
-    function updateRewards(uint256 stakeMapIndex, address[] memory staker) 
-    public 
+    function updateRewards(uint256 stakeMapIndex, address[] calldata staker) 
+    external 
     onlyOperator
     {
         for(uint256 indx = 0; indx < staker.length; indx++) {
@@ -480,7 +470,7 @@ contract TokenStake is Ownable{
 
 
     // Migration - Load existing stakes along with computed reward
-    function migrateStakes(uint256 stakeMapIndex, address[] memory staker, uint256[] memory stakeAmount) public onlyOperator {
+    function migrateStakes(uint256 stakeMapIndex, address[] calldata staker, uint256[] calldata stakeAmount) external onlyOperator {
 
         // Add check for Block Number to restrict migration after certain block number
         require(block.number < maxMigrationBlocks, "Exceeds migration phase");
