@@ -1,26 +1,29 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.6.0;
 
-import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
-import "openzeppelin-solidity/contracts/ownership/Claimable.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract TokenStake is Claimable{
-    
+contract TokenStake is Ownable{
+
     using SafeMath for uint256;
 
     ERC20 public token; // Address of token contract
     address public tokenOperator; // Address to manage the Stake 
-    uint256 public totalPendingApprovalStake; // Stake which should not be part of the Liquid Pool
+
+    uint256 public maxMigrationBlocks; // Block numbers to complete the migration
+
     mapping (address => uint256) public balances; // Useer Token balance in the contract
 
     uint256 public currentStakeMapIndex; // Current Stake Index to avoid math calc in all methods
-    uint256 public maxDaysToOpenInSecs;       // Max number of days in the future to open a new stake
 
     struct StakeInfo {
         bool exist;
-        bool autoRenewal;
         uint256 pendingForApprovalAmount;
         uint256 approvedAmount;
+        uint256 rewardComputeIndex;
+
+        mapping (uint256 => uint256) claimableAmount;
     }
 
     // Staking period timestamp (Debatable on timestamp vs blocknumber - went with timestamp)
@@ -32,41 +35,39 @@ contract TokenStake is Claimable{
         uint256 endPeriod;
 
         uint256 minStake;
-        uint256 maxStake;
-
-        uint256 windowMaxCap;
 
         bool openForExternal;
 
-        uint256 windowTotalStake;
         uint256 windowRewardAmount;
-
-        address[] stakeHolders;
-        mapping(address => StakeInfo) stakeHolderInfo; 
+        
     }
 
     mapping (uint256 => StakePeriod) public stakeMap;
 
-    mapping (address => uint256[]) public stakerPeriodMap;
+    // List of Stake Holders
+    address[] stakeHolders; 
+
+    // All Stake Holders
+    //mapping(address => mapping(uint256 => StakeInfo)) stakeHolderInfo;
+    mapping(address => StakeInfo) stakeHolderInfo;
+
+    // To store the total stake in a window
+    uint256 public windowTotalStake;
 
     // Events
     event NewOperator(address tokenOperator);
 
     event WithdrawToken(address indexed tokenOperator, uint256 amount);
-    event DepositToken(address indexed tokenOperator, uint256 amount);
 
     event OpenForStake(uint256 indexed stakeIndex, address indexed tokenOperator, uint256 startPeriod, uint256 endPeriod, uint256 approvalEndPeriod, uint256 rewardAmount);
-    event SubmitStake(uint256 indexed stakeIndex, address indexed staker, uint256 stakeAmount, bool autoRenewal);
-    event UpdateAutoRenewal(uint256 indexed stakeIndex, address indexed staker, bool autoRenewal);
-    event ClaimStake(uint256 indexed stakeIndex, address indexed staker, uint256 rewardAmount, uint256 totalAmount);
-
-    event ApproveStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator, uint256 approvedStakeAmount, uint256 returnAmount);
+    event SubmitStake(uint256 indexed stakeIndex, address indexed staker, uint256 stakeAmount);
+    event RequestForClaim(uint256 indexed stakeIndex, address indexed staker, bool autoRenewal);
+    event ClaimStake(uint256 indexed stakeIndex, address indexed staker, uint256 totalAmount);   
     event RejectStake(uint256 indexed stakeIndex, address indexed staker, address indexed tokenOperator, uint256 returnAmount);
-
-    event AutoRenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, address tokenOperator, uint256 stakeAmount, uint256 approvedAmount, uint256 returnAmount);
-    event RenewStake(uint256 indexed newStakeIndex, address indexed staker, uint256 oldStakeIndex, uint256 totalAmount, uint256 stakeAmount, uint256 returnAmount);
-
+    event AddReward(address indexed staker, uint256 indexed stakeIndex, address tokenOperator, uint256 totalStakeAmount, uint256 rewardAmount, uint256 windowTotalStake);
     event WithdrawStake(uint256 indexed stakeIndex, address indexed staker, uint256 stakeAmount);
+
+
 
     // Modifiers
     modifier onlyOperator() {
@@ -82,7 +83,7 @@ contract TokenStake is Claimable{
         require(
             now >= stakeMap[currentStakeMapIndex].startPeriod && 
             now <= stakeMap[currentStakeMapIndex].submissionEndPeriod && 
-            (stakeMap[currentStakeMapIndex].openForExternal == true || msg.sender == tokenOperator), 
+            stakeMap[currentStakeMapIndex].openForExternal == true, 
             "Staking at this point not allowed"
         );
         _;
@@ -91,79 +92,53 @@ contract TokenStake is Claimable{
     modifier validStakeLimit(address staker, uint256 stakeAmount) {
 
         uint256 stakerTotalStake;
-        stakerTotalStake = stakeAmount.add(stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].pendingForApprovalAmount);
-        stakerTotalStake = stakerTotalStake.add(stakeMap[currentStakeMapIndex].stakeHolderInfo[staker].approvedAmount);
+        stakerTotalStake = stakeAmount.add(stakeHolderInfo[staker].pendingForApprovalAmount);
+        stakerTotalStake = stakerTotalStake.add(stakeHolderInfo[staker].approvedAmount);
 
         // Check for Min Stake
         require(
             stakeAmount > 0 && 
-            stakerTotalStake >= stakeMap[currentStakeMapIndex].minStake &&
-            stakerTotalStake <= stakeMap[currentStakeMapIndex].maxStake, 
-            "Invalid stake amount"
+            stakerTotalStake >= stakeMap[currentStakeMapIndex].minStake,
+            "Need to have min stake"
         );
         _;
 
     }
 
-    modifier canUpdateAutoRenewal(uint256 stakeMapIndex) {
-        // Check to see request for withdraw stake is allowed
+    // Check for auto renewal flag update
+    modifier canRequestForClaim(uint256 stakeMapIndex) {
         require(
-            (stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].pendingForApprovalAmount > 0 && 
-            now >= stakeMap[stakeMapIndex].startPeriod &&
-            now <= stakeMap[stakeMapIndex].submissionEndPeriod) || 
-            (stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].approvedAmount > 0 && 
+            (stakeHolderInfo[msg.sender].approvedAmount > 0 || stakeHolderInfo[msg.sender].claimableAmount[stakeMapIndex] > 0) &&  
             now >= stakeMap[stakeMapIndex].requestWithdrawStartPeriod &&
-            now <= stakeMap[stakeMapIndex].endPeriod), 
+            now <= stakeMap[stakeMapIndex].endPeriod, 
             "Update to auto renewal at this point not allowed"
         );
         _;
     }
 
+    // Check for claim - after the end period when opted out OR after grace period when no more stake windows
     modifier allowClaimStake(uint256 stakeMapIndex) {
-        // Check to see withdraw stake is allowed
 
         uint256 graceTime;
         graceTime = stakeMap[stakeMapIndex].endPeriod.sub(stakeMap[stakeMapIndex].requestWithdrawStartPeriod);
 
         require(
-            now > stakeMap[stakeMapIndex].endPeriod && 
-            stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].approvedAmount > 0 && 
-            (stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender].autoRenewal == false || now > stakeMap[stakeMapIndex].endPeriod.add(graceTime)) , 
-            "Invalid claim request"
+            (now > stakeMap[stakeMapIndex].endPeriod && stakeHolderInfo[msg.sender].claimableAmount[stakeMapIndex] > 0) ||
+            (now > stakeMap[stakeMapIndex].endPeriod.add(graceTime) && stakeHolderInfo[msg.sender].approvedAmount > 0), "Invalid claim request"
         );
         _;
+
     }
 
-    modifier allowAutoRenewStake(uint256 stakeMapIndex, address staker) {
-        // Check to see withdraw stake is allowed
-        require(
-            now > stakeMap[stakeMapIndex].endPeriod && 
-            stakeMap[stakeMapIndex].stakeHolderInfo[staker].approvedAmount > 0 && 
-            stakeMap[stakeMapIndex].stakeHolderInfo[staker].autoRenewal == true, 
-            "Invalid renewal request"
-        );
-        _;
-    }
-
-    modifier checkWindowMaxCapLimit(uint256 stakeMapIndex, uint256 approvedAmount) {
-        // To make sure that the total approved is not crossing the max Cap
-        require(
-            stakeMap[stakeMapIndex].windowTotalStake.add(approvedAmount) <=  stakeMap[stakeMapIndex].windowMaxCap,  
-            "Approval violates window max cap limit"
-        );
-        _;
-    }
-
-    constructor(address _token)
+    constructor(address _token, uint256 _maxMigrationBlocks)
     public
     {
         token = ERC20(_token);
-        owner = msg.sender;
         tokenOperator = msg.sender;
-        maxDaysToOpenInSecs = 7776000; // 90d * 24h * 60m * 60s
         currentStakeMapIndex = 0;
+        windowTotalStake = 0;
+        maxMigrationBlocks = _maxMigrationBlocks.add(block.number); 
     }
-
 
     function updateOperator(address newOperator) public onlyOwner {
 
@@ -173,46 +148,26 @@ contract TokenStake is Claimable{
 
         emit NewOperator(newOperator);
     }
-
-    function updateMaxDaysToOpen(uint256 maxNumOfDaysToOpen) public onlyOperator {
-
-        require(maxNumOfDaysToOpen > 0, "Invalid input value");
-        maxDaysToOpenInSecs = maxNumOfDaysToOpen.mul(86400);   // maxNumOfDaysToOpen * 24h * 60m * 60s
-
-    }
-
-    function depositToken(uint256 value) public onlyOperator {
-
-        // Input validation are in place in token contract
-        require(token.transferFrom(msg.sender, this, value), "Unable to transfer token to the contract"); 
-
-        emit DepositToken(tokenOperator, value);
-
-    }
     
     function withdrawToken(uint256 value) public onlyOperator
     {
 
-        // Contract Token balance should maintain min of totalPendingApprovalStake 
-        require(token.balanceOf(this) >= totalPendingApprovalStake.add(value), "Not enough balance in the contract");
+        // Check if contract is having required balance 
+        require(token.balanceOf(address(this)) >= value, "Not enough balance in the contract");
         require(token.transfer(msg.sender, value), "Unable to transfer token to the operator account");
 
         emit WithdrawToken(tokenOperator, value);
         
     }
 
-
-    function openForStake(uint256 _startPeriod, uint256 _submissionEndPeriod,  uint256 _approvalEndPeriod, uint256 _requestWithdrawStartPeriod, uint256 _endPeriod, uint256 _windowRewardAmount, uint256 _windowMaxCap, uint256 _minStake, uint256 _maxStake, bool _openForExternal) public onlyOperator {
+    function openForStake(uint256 _startPeriod, uint256 _submissionEndPeriod,  uint256 _approvalEndPeriod, uint256 _requestWithdrawStartPeriod, uint256 _endPeriod, uint256 _windowRewardAmount, uint256 _minStake, bool _openForExternal) public onlyOperator {
 
         // Check Input Parameters
         require(_startPeriod >= now && _startPeriod < _submissionEndPeriod && _submissionEndPeriod < _approvalEndPeriod && _approvalEndPeriod < _requestWithdrawStartPeriod && _requestWithdrawStartPeriod < _endPeriod, "Invalid stake period");
-        require(_windowRewardAmount > 0 && _windowMaxCap > 0 && _minStake > 0 && _maxStake > 0 && _minStake < _maxStake && _maxStake < _windowMaxCap, "Invalid inputs" );
+        require(_windowRewardAmount > 0 && _minStake > 0, "Invalid inputs" );
 
         // Check Stake in Progress
-        require(currentStakeMapIndex == 0 || now > stakeMap[currentStakeMapIndex].approvalEndPeriod, "Cannot have more than one stake request at a time");
-
-        // Check for max days to open to avoid the locking to open a new stake
-        require(now > _approvalEndPeriod.sub(maxDaysToOpenInSecs), "Too futuristic");
+        require(currentStakeMapIndex == 0 || (now > stakeMap[currentStakeMapIndex].approvalEndPeriod && _startPeriod >= stakeMap[currentStakeMapIndex].requestWithdrawStartPeriod), "Cannot have more than one stake request at a time");
 
         // Move the staking period to next one
         currentStakeMapIndex = currentStakeMapIndex + 1;
@@ -225,30 +180,27 @@ contract TokenStake is Claimable{
         stakePeriod.requestWithdrawStartPeriod = _requestWithdrawStartPeriod;
         stakePeriod.endPeriod = _endPeriod;
         stakePeriod.windowRewardAmount = _windowRewardAmount;
-        stakePeriod.windowMaxCap = _windowMaxCap;
-        stakePeriod.minStake = _minStake;
-        stakePeriod.maxStake = _maxStake;        
+        stakePeriod.minStake = _minStake;        
         stakePeriod.openForExternal = _openForExternal;
 
         stakeMap[currentStakeMapIndex] = stakePeriod;
+
+        // Add the current window reward to the window total stake 
+        windowTotalStake = windowTotalStake.add(_windowRewardAmount);
 
         emit OpenForStake(currentStakeMapIndex, msg.sender, _startPeriod, _endPeriod, _approvalEndPeriod, _windowRewardAmount);
 
     }
 
-    function _createStake(address staker, uint256 stakeAmount, bool autoRenewal, bool isAutoRenewal) internal returns(bool) {
+    // To add the Stake Holder
+    function _createStake(address staker, uint256 stakeAmount) internal returns(bool) {
 
-        StakeInfo storage stakeInfo = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker];
+        StakeInfo storage stakeInfo = stakeHolderInfo[staker];
 
-        // Check if the user already staked in the current staking period
+        // Check if the user already staked in the past
         if(stakeInfo.exist) {
 
-            if(isAutoRenewal) {
-                stakeInfo.approvedAmount = stakeInfo.approvedAmount.add(stakeAmount);
-            } else {
-                stakeInfo.pendingForApprovalAmount = stakeInfo.pendingForApprovalAmount.add(stakeAmount);
-            }
-            stakeInfo.autoRenewal = autoRenewal;
+            stakeInfo.pendingForApprovalAmount = stakeInfo.pendingForApprovalAmount.add(stakeAmount);
 
         } else {
 
@@ -256,262 +208,52 @@ contract TokenStake is Claimable{
 
             // Create a new stake request
             req.exist = true;
-            req.autoRenewal = autoRenewal;
+            req.pendingForApprovalAmount = stakeAmount;
             req.approvedAmount = 0;
-
-            if(isAutoRenewal) {
-                req.approvedAmount = stakeAmount;
-            } else {
-                req.pendingForApprovalAmount = stakeAmount;
-            }
-
-            stakeMap[currentStakeMapIndex].stakeHolderInfo[staker] = req;
+            req.rewardComputeIndex = 0;
 
             // Add to the Stake Holders List
-            stakeMap[currentStakeMapIndex].stakeHolders.push(staker);
+            stakeHolderInfo[staker] = req;
 
-            // Add the currentStakeMapIndex to Address
-            stakerPeriodMap[staker].push(currentStakeMapIndex);
+            // Add to the Stake Holders List
+            stakeHolders.push(staker);
+
         }
 
         return true;
+
     }
 
-    function submitStake(uint256 stakeAmount, bool autoRenewal) public allowSubmission validStakeLimit(msg.sender, stakeAmount) {
+
+    // To submit a new stake for the current window
+    function submitStake(uint256 stakeAmount) public allowSubmission validStakeLimit(msg.sender, stakeAmount) {
 
         // Transfer the Tokens to Contract
-        require(token.transferFrom(msg.sender, this, stakeAmount), "Unable to transfer token to the contract");
+        require(token.transferFrom(msg.sender, address(this), stakeAmount), "Unable to transfer token to the contract");
 
-        _createStake(msg.sender, stakeAmount, autoRenewal, false);
+        _createStake(msg.sender, stakeAmount);
 
         // Update the User balance
         balances[msg.sender] = balances[msg.sender].add(stakeAmount);
 
-        // Update the total pending for Approval
-        totalPendingApprovalStake = totalPendingApprovalStake.add(stakeAmount);
-        
-        emit SubmitStake(currentStakeMapIndex, msg.sender, stakeAmount, autoRenewal);
+        // Update current stake period total stake - For Auto Approvals
+        windowTotalStake = windowTotalStake.add(stakeAmount); 
+       
+        emit SubmitStake(currentStakeMapIndex, msg.sender, stakeAmount);
 
     }
 
-    function _calculateRewardAmount(uint256 stakeMapIndex, uint256 stakeAmount) internal view returns(uint256) {
-
-        uint256 calcRewardAmount;
-        calcRewardAmount = stakeAmount.mul(stakeMap[stakeMapIndex].windowRewardAmount).div(stakeMap[stakeMapIndex].windowTotalStake);
-        return calcRewardAmount;
-    }
-
-    function autoRenewStake(uint256 stakeMapIndex, address staker, uint256 approvedAmount) 
-    public 
-    onlyOperator 
-    allowSubmission 
-    allowAutoRenewStake(stakeMapIndex, staker) 
-    checkWindowMaxCapLimit(currentStakeMapIndex, approvedAmount)
-    {
-
-        require(approvedAmount > 0, "Invalid approval amount");
-
-        StakeInfo storage oldStakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
-
-        // Calculate the totalAmount
-        uint256 totalAmount;
-        uint256 rewardAmount;
-        uint256 returnAmount;
-
-        rewardAmount = _calculateRewardAmount(stakeMapIndex, oldStakeInfo.approvedAmount);
-        totalAmount = oldStakeInfo.approvedAmount.add(rewardAmount);
-
-        require(approvedAmount <= totalAmount, "Invalid approved amount");
-
-        // Create a new stake in current staking period
-        _createStake(staker, approvedAmount, oldStakeInfo.autoRenewal, true);
-
-        if(approvedAmount < totalAmount) {
-
-            returnAmount = totalAmount.sub(approvedAmount);
-
-            // transfer back the remaining amount
-            require(token.transfer(staker, returnAmount), "Unable to transfer token back to the account");
-
-        }
-
-        // Update current stake period total stake
-        stakeMap[currentStakeMapIndex].windowTotalStake = stakeMap[currentStakeMapIndex].windowTotalStake.add(approvedAmount);
-
-        // Update the User Balance
-        balances[staker] = balances[staker].add(rewardAmount).sub(returnAmount);
-
-        // Update the existsing Approved Amount
-        oldStakeInfo.approvedAmount = 0;
-
-        emit AutoRenewStake(currentStakeMapIndex, staker, stakeMapIndex, tokenOperator, totalAmount, approvedAmount, returnAmount);
-
-    }
-
-
-    // Renew stake along with reward
-    function renewStake(uint256 stakeMapIndex, uint256 stakeAmount, bool autoRenewal) public allowSubmission allowClaimStake(stakeMapIndex) {
-
-        StakeInfo storage oldStakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
-
-        // Calculate the totalAmount
-        uint256 totalAmount;
-        uint256 rewardAmount;
-
-        rewardAmount = _calculateRewardAmount(stakeMapIndex, oldStakeInfo.approvedAmount);
-        totalAmount = oldStakeInfo.approvedAmount.add(rewardAmount);
-
-        uint256 stakerTotalStake;
-        stakerTotalStake = stakeAmount.add(stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].pendingForApprovalAmount);
-        stakerTotalStake = stakerTotalStake.add(stakeMap[currentStakeMapIndex].stakeHolderInfo[msg.sender].approvedAmount);
-
-        // Not able to use modifier
-        require(
-            stakeAmount > 0 && stakeAmount <= totalAmount && 
-            stakerTotalStake >= stakeMap[currentStakeMapIndex].minStake &&
-            stakerTotalStake <= stakeMap[currentStakeMapIndex].maxStake , 
-            "Invalid stake amount"
-        );
-
-        _createStake(msg.sender, stakeAmount, autoRenewal, false);
-
-        uint256 returnAmount;
-        if(stakeAmount < totalAmount) {
-            returnAmount = totalAmount.sub(stakeAmount);
-            // transfer back the remaining amount
-            require(token.transfer(msg.sender, returnAmount), "Unable to transfer token back to the account");
-        }
-
-        // Update the User Balance
-        balances[msg.sender] = balances[msg.sender].add(rewardAmount).sub(returnAmount);
-
-        // Update the total pending for Approval
-        totalPendingApprovalStake = totalPendingApprovalStake.add(stakeAmount);
-
-        // Update the existing Stake Approved Amount
-        oldStakeInfo.approvedAmount = 0;
-
-        emit RenewStake(currentStakeMapIndex, msg.sender, stakeMapIndex, totalAmount, stakeAmount, returnAmount);
-
-    }
-
-    function updateAutoRenewal(uint256 stakeMapIndex, bool autoRenewal) public canUpdateAutoRenewal(stakeMapIndex) {
-
-        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
-        stakeInfo.autoRenewal = autoRenewal;
-
-        emit UpdateAutoRenewal(stakeMapIndex, msg.sender, autoRenewal);
-
-    }
-
-    function claimStake(uint256 stakeMapIndex) public allowClaimStake(stakeMapIndex) {
-
-        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
-
-        // Calculate the totalAmount
-        uint256 totalAmount;
-        uint256 rewardAmount;
-
-        rewardAmount = _calculateRewardAmount(stakeMapIndex, stakeInfo.approvedAmount);
-
-        totalAmount = stakeInfo.approvedAmount.add(rewardAmount);
-
-        // Update the User Balance
-        balances[msg.sender] = balances[msg.sender].sub(stakeInfo.approvedAmount);
-
-        // Update the existing Stake Approved Amount
-        stakeInfo.approvedAmount = 0;
-
-        // Call the transfer function - Already handles balance check
-        require(token.transfer(msg.sender, totalAmount), "Unable to transfer token back to the account");
-
-        emit ClaimStake(stakeMapIndex, msg.sender, rewardAmount, totalAmount);
-
-    }
-
-    function approveStake(address staker, uint256 approvedAmount) 
-    public 
-    onlyOperator 
-    checkWindowMaxCapLimit(currentStakeMapIndex, approvedAmount)
-    {
-
-        // Request for Stake should be in Approval phase
-        require(now > stakeMap[currentStakeMapIndex].submissionEndPeriod && now <= stakeMap[currentStakeMapIndex].approvalEndPeriod, "Approval at this point not allowed");
-
-        // Input Validation
-        require(approvedAmount > 0, "Invalid approved amount");
-
-        StakeInfo storage stakeInfo = stakeMap[currentStakeMapIndex].stakeHolderInfo[staker];
-
-        require(stakeInfo.pendingForApprovalAmount > 0 && stakeInfo.pendingForApprovalAmount >= approvedAmount, "Cannot approve beyond stake amount");
-
-        uint256 returnAmount;
-
-        if(approvedAmount < stakeInfo.pendingForApprovalAmount) {
-            returnAmount = stakeInfo.pendingForApprovalAmount.sub(approvedAmount);
-
-            // transfer back the remaining amount
-            require(token.transfer(staker, returnAmount), "Unable to transfer token back to the account");
-        }
-
-        // Update current stake period total stake
-        stakeMap[currentStakeMapIndex].windowTotalStake = stakeMap[currentStakeMapIndex].windowTotalStake.add(approvedAmount);
-
-        // Update the User Balance
-        balances[staker] = balances[staker].sub(returnAmount);
-
-        // Update the total pending for Approval
-        totalPendingApprovalStake = totalPendingApprovalStake.sub(stakeInfo.pendingForApprovalAmount);
-
-        // Update the Stake Request
-        stakeInfo.pendingForApprovalAmount = 0;
-        stakeInfo.approvedAmount = stakeInfo.approvedAmount.add(approvedAmount);
-
-        emit ApproveStake(currentStakeMapIndex, staker, msg.sender, approvedAmount, returnAmount);
-
-    }
-
-    function rejectStake(uint256 stakeMapIndex, address staker) public onlyOperator {
-
-        // Allow for rejection after approval period as well
-        require(now > stakeMap[stakeMapIndex].submissionEndPeriod, "Rejection at this point is not allowed");
-
-        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
-
-        // In case of if there are auto renewals reject should not be allowed
-        require(stakeInfo.pendingForApprovalAmount > 0, "No staking request found");
-
-        uint256 returnAmount;
-        returnAmount = stakeInfo.pendingForApprovalAmount;
-
-        // transfer back the stake to user account
-        require(token.transfer(staker, stakeInfo.pendingForApprovalAmount), "Unable to transfer token back to the account");
-
-        // Update the User Balance
-        balances[staker] = balances[staker].sub(stakeInfo.pendingForApprovalAmount);
-
-        // Update the total pending for Approval
-        totalPendingApprovalStake = totalPendingApprovalStake.sub(stakeInfo.pendingForApprovalAmount);
-
-        // Update the Pending Amount
-        stakeInfo.pendingForApprovalAmount = 0;
-
-        emit RejectStake(stakeMapIndex, staker, msg.sender, returnAmount);
-
-    }
-
-    // To withdraw stake during submission phase or after approval end period when no action from token Operator
+    // To withdraw stake during submission phase
     function withdrawStake(uint256 stakeMapIndex, uint256 stakeAmount) public {
 
         require(
-            (now >= stakeMap[stakeMapIndex].startPeriod && now <= stakeMap[stakeMapIndex].submissionEndPeriod) ||
-            now > stakeMap[stakeMapIndex].approvalEndPeriod,
+            (now >= stakeMap[stakeMapIndex].startPeriod && now <= stakeMap[stakeMapIndex].submissionEndPeriod),
             "Stake withdraw at this point is not allowed"
         );
 
-        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[msg.sender];
+        StakeInfo storage stakeInfo = stakeHolderInfo[msg.sender];
 
-        // In Any State User can withdraw - based on time slots as above
+        // Validate the input Stake Amount
         require(stakeAmount > 0 &&
         stakeInfo.pendingForApprovalAmount >= stakeAmount,
         "Cannot withdraw beyond stake amount");
@@ -529,8 +271,8 @@ contract TokenStake is Claimable{
         // Update the User balance
         balances[msg.sender] = balances[msg.sender].sub(stakeAmount);
 
-        // Update the total pending for Approval
-        totalPendingApprovalStake = totalPendingApprovalStake.sub(stakeAmount);
+        // Update current stake period total stake - For Auto Approvals
+        windowTotalStake = windowTotalStake.sub(stakeAmount); 
 
         // Return to User Wallet
         require(token.transfer(msg.sender, stakeAmount), "Unable to transfer token to the account");
@@ -538,23 +280,246 @@ contract TokenStake is Claimable{
         emit WithdrawStake(stakeMapIndex, msg.sender, stakeAmount);
     }
 
+    // Reject the stake in the Current Window
+    function rejectStake(uint256 stakeMapIndex, address staker) public onlyOperator {
 
-    // Getter Functions
-    function getStakeHolders(uint256 stakeMapIndex) public view returns(address[]) {
-        return stakeMap[stakeMapIndex].stakeHolders;
+        // Allow for rejection after approval period as well
+        require(now > stakeMap[stakeMapIndex].submissionEndPeriod && currentStakeMapIndex == stakeMapIndex, "Rejection at this point is not allowed");
+
+        StakeInfo storage stakeInfo = stakeHolderInfo[staker];
+
+        // In case of if there are auto renewals reject should not be allowed
+        require(stakeInfo.pendingForApprovalAmount > 0, "No staking request found");
+
+        uint256 returnAmount;
+        returnAmount = stakeInfo.pendingForApprovalAmount;
+
+        // transfer back the stake to user account
+        require(token.transfer(staker, stakeInfo.pendingForApprovalAmount), "Unable to transfer token back to the account");
+
+        // Update the User Balance
+        balances[staker] = balances[staker].sub(stakeInfo.pendingForApprovalAmount);
+
+        // Update current stake period total stake - For Auto Approvals
+        windowTotalStake = windowTotalStake.sub(stakeInfo.pendingForApprovalAmount);
+
+        // Update the Pending Amount
+        stakeInfo.pendingForApprovalAmount = 0;
+
+        emit RejectStake(stakeMapIndex, staker, msg.sender, returnAmount);
+
     }
 
-    function getStakeHolderStakingPeriods(address staker) public view returns(uint256[]) {
-        return stakerPeriodMap[staker];
+    // To update the Auto Renewal - OptIn or OptOut for next stake window
+    function requestForClaim(uint256 stakeMapIndex, bool autoRenewal) public canRequestForClaim(stakeMapIndex) {
+
+        StakeInfo storage stakeInfo = stakeHolderInfo[msg.sender];
+
+        // Check for the claim amount
+        require((autoRenewal == true && stakeInfo.claimableAmount[stakeMapIndex] > 0) || (autoRenewal == false && stakeInfo.approvedAmount > 0), "Invalid auto renew request");
+
+        if(autoRenewal) {
+
+            // Update current stake period total stake - For Auto Approvals
+            windowTotalStake = windowTotalStake.add(stakeInfo.claimableAmount[stakeMapIndex]);
+
+            stakeInfo.approvedAmount = stakeInfo.claimableAmount[stakeMapIndex];
+            stakeInfo.claimableAmount[stakeMapIndex] = 0;
+
+        } else {
+
+            // Update current stake period total stake - For Auto Approvals
+            windowTotalStake = windowTotalStake.sub(stakeInfo.approvedAmount);
+
+            stakeInfo.claimableAmount[stakeMapIndex] = stakeInfo.approvedAmount;
+            stakeInfo.approvedAmount = 0;
+
+        }
+
+        emit RequestForClaim(stakeMapIndex, msg.sender, autoRenewal);
+
+    }
+
+
+    function _calculateRewardAmount(uint256 stakeMapIndex, uint256 stakeAmount) internal view returns(uint256) {
+
+        uint256 calcRewardAmount;
+        calcRewardAmount = stakeAmount.mul(stakeMap[stakeMapIndex].windowRewardAmount).div(windowTotalStake.sub(stakeMap[stakeMapIndex].windowRewardAmount));
+        return calcRewardAmount;
+    }
+
+
+    // Update reward for staker in the respective stake window
+    function computeAndAddReward(uint256 stakeMapIndex, address staker) 
+    public 
+    onlyOperator
+    returns(bool)
+    {
+
+        // Check for the Incubation Period
+        require(
+            now > stakeMap[stakeMapIndex].approvalEndPeriod && 
+            now < stakeMap[stakeMapIndex].requestWithdrawStartPeriod, 
+            "Reward cannot be added now"
+        );
+
+        StakeInfo storage stakeInfo = stakeHolderInfo[staker];
+
+        // Check if reward already computed
+        require((stakeInfo.approvedAmount > 0 || stakeInfo.pendingForApprovalAmount > 0 ) && stakeInfo.rewardComputeIndex != stakeMapIndex, "Invalid reward request");
+
+
+        // Calculate the totalAmount
+        uint256 totalAmount;
+        uint256 rewardAmount;
+
+        // Calculate the reward amount for the current window - Need to consider pendingForApprovalAmount for Auto Approvals
+        totalAmount = stakeInfo.approvedAmount.add(stakeInfo.pendingForApprovalAmount);
+        rewardAmount = _calculateRewardAmount(stakeMapIndex, totalAmount);
+        totalAmount = totalAmount.add(rewardAmount);
+
+        // Add the reward amount and update pendingForApprovalAmount
+        stakeInfo.approvedAmount = totalAmount;
+        stakeInfo.pendingForApprovalAmount = 0;
+
+        // Update the reward compute index to avoid mulitple addition
+        stakeInfo.rewardComputeIndex = stakeMapIndex;
+
+        // Update the User Balance
+        balances[staker] = balances[staker].add(rewardAmount);
+
+        emit AddReward(staker, stakeMapIndex, tokenOperator, totalAmount, rewardAmount, windowTotalStake);
+
+        return true;
+    }
+
+    function updateRewards(uint256 stakeMapIndex, address[] calldata staker) 
+    external 
+    onlyOperator
+    {
+        for(uint256 indx = 0; indx < staker.length; indx++) {
+            require(computeAndAddReward(stakeMapIndex, staker[indx]));
+        }
+    }
+
+    // To claim from the stake window
+    function claimStake(uint256 stakeMapIndex) public allowClaimStake(stakeMapIndex) {
+
+        StakeInfo storage stakeInfo = stakeHolderInfo[msg.sender];
+
+        uint256 stakeAmount;
+        
+        // General claim
+        if(stakeInfo.claimableAmount[stakeMapIndex] > 0) {
+            
+            stakeAmount = stakeInfo.claimableAmount[stakeMapIndex];
+            stakeInfo.claimableAmount[stakeMapIndex] = 0;
+
+        } else {
+            
+            // No more stake windows & beyond grace period
+            stakeAmount = stakeInfo.approvedAmount;
+            stakeInfo.approvedAmount = 0;
+
+            // Update current stake period total stake
+            windowTotalStake = windowTotalStake.sub(stakeAmount);
+        }
+
+        // Check for balance in the contract
+        require(token.balanceOf(address(this)) >= stakeAmount, "Not enough balance in the contract");
+
+        // Update the User Balance
+        balances[msg.sender] = balances[msg.sender].sub(stakeAmount);
+
+        // Call the transfer function
+        require(token.transfer(msg.sender, stakeAmount), "Unable to transfer token back to the account");
+
+        emit ClaimStake(stakeMapIndex, msg.sender, stakeAmount);
+
+    }
+
+
+    // Migration - Load existing Stake Windows & Stakers
+    function migrateStakeWindow(uint256 _startPeriod, uint256 _submissionEndPeriod,  uint256 _approvalEndPeriod, uint256 _requestWithdrawStartPeriod, uint256 _endPeriod, uint256 _windowRewardAmount, uint256 _minStake, bool _openForExternal) public onlyOperator {
+
+        // Add check for Block Number to restrict migration after certain block number
+        require(block.number < maxMigrationBlocks, "Exceeds migration phase");
+
+        // Check Input Parameters for past stake windows
+        require(now > _startPeriod && _startPeriod < _submissionEndPeriod && _submissionEndPeriod < _approvalEndPeriod && _approvalEndPeriod < _requestWithdrawStartPeriod && _requestWithdrawStartPeriod < _endPeriod, "Invalid stake period");
+        require(_windowRewardAmount > 0 && _minStake > 0, "Invalid inputs" );
+
+        // Move the staking period to next one
+        currentStakeMapIndex = currentStakeMapIndex + 1;
+        StakePeriod memory stakePeriod;
+
+        // Set Staking attributes
+        stakePeriod.startPeriod = _startPeriod;
+        stakePeriod.submissionEndPeriod = _submissionEndPeriod;
+        stakePeriod.approvalEndPeriod = _approvalEndPeriod;
+        stakePeriod.requestWithdrawStartPeriod = _requestWithdrawStartPeriod;
+        stakePeriod.endPeriod = _endPeriod;
+        stakePeriod.windowRewardAmount = _windowRewardAmount;
+        stakePeriod.minStake = _minStake;        
+        stakePeriod.openForExternal = _openForExternal;
+
+        stakeMap[currentStakeMapIndex] = stakePeriod;
+
+
+    }
+
+
+    // Migration - Load existing stakes along with computed reward
+    function migrateStakes(uint256 stakeMapIndex, address[] calldata staker, uint256[] calldata stakeAmount) external onlyOperator {
+
+        // Add check for Block Number to restrict migration after certain block number
+        require(block.number < maxMigrationBlocks, "Exceeds migration phase");
+
+        // Check Input Parameters
+        require(staker.length == stakeAmount.length, "Invalid Input Arrays");
+
+        // Stakers should be for current window
+        require(currentStakeMapIndex == stakeMapIndex, "Invalid Stake Window Index");
+
+        for(uint256 indx = 0; indx < staker.length; indx++) {
+
+            StakeInfo memory req;
+
+            // Create a stake request with approvedAmount
+            req.exist = true;
+            req.pendingForApprovalAmount = 0;
+            req.approvedAmount = stakeAmount[indx];
+            req.rewardComputeIndex = stakeMapIndex;
+
+            // Add to the Stake Holders List
+            stakeHolderInfo[staker[indx]] = req;
+
+            // Add to the Stake Holders List
+            stakeHolders.push(staker[indx]);
+
+            // Update the User balance
+            balances[staker[indx]] = stakeAmount[indx];
+
+            // Update current stake period total stake - Along with Reward
+            windowTotalStake = windowTotalStake.add(stakeAmount[indx]);
+
+        }
+
+    }
+
+
+    // Getter Functions    
+    function getStakeHolders() public view returns(address[] memory) {
+        return stakeHolders;
     }
 
     function getStakeInfo(uint256 stakeMapIndex, address staker) 
     public 
     view
-    returns (bool found, uint256 pendingForApprovalAmount, uint256 approvedAmount, bool autoRenewal) 
+    returns (bool found, uint256 approvedAmount, uint256 pendingForApprovalAmount, uint256 rewardComputeIndex, uint256 claimableAmount) 
     {
 
-        StakeInfo storage stakeInfo = stakeMap[stakeMapIndex].stakeHolderInfo[staker];
+        StakeInfo storage stakeInfo = stakeHolderInfo[staker];
         
         found = false;
         if(stakeInfo.exist) {
@@ -563,7 +528,10 @@ contract TokenStake is Claimable{
 
         pendingForApprovalAmount = stakeInfo.pendingForApprovalAmount;
         approvedAmount = stakeInfo.approvedAmount;
-        autoRenewal = stakeInfo.autoRenewal;
+        rewardComputeIndex = stakeInfo.rewardComputeIndex;
+        claimableAmount = stakeInfo.claimableAmount[stakeMapIndex];
+
     }
+
 
 }
