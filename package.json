@@ -27,7 +27,7 @@
     "@openzeppelin/contracts": "^3.2.0",
     "@truffle/contract": "^4.2.23",
     "@truffle/hdwallet-provider": "^1.1.0",
-    "singularitynet-token-contracts": "2.0.1",
+    "singularitynet-token-contracts": "^3.0.0",
     "truffle": "5.1.46"
   },
   "devDependencies": {

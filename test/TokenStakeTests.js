@@ -732,7 +732,7 @@ console.log("Number of Accounts - ", accounts.length)
         // accounts[9] -> Token Operator
 
         // An explicit call is required to mint the tokens for AGI-II
-        //await token.mint(accounts[0], GAmt, {from:accounts[0]});
+        await token.mint(accounts[0], 1000 * GAmt, {from:accounts[0]});
 
         await approveTokensToContract(1, 9, GAmt);
 
