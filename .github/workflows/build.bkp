@@ -1,0 +1,14 @@
+on: push
+name: Main Workflow
+jobs:
+  build:
+    name: Build, Test and Analyze
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone Repository
+        uses: actions/checkout@master
+      - name: SonarQube Scan
+        uses: kitabisa/sonarqube-action@v1.1.0
+        with:
+          host: ${{ secrets.SONAR_HOST }}
+          login: ${{ secrets.SONAR_TOKEN }}
