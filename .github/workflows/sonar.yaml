@@ -2,6 +2,7 @@ on:
   push:
     branches:
       - master
+      - development
 name: Main Workflow
 jobs:
   sonarQubeTrigger:
