@@ -16,9 +16,9 @@ Placeholder to place the high level requirements
 
 ## Deployed Contracts (npm version 0.1.0)
 
-* TokenStake (Mainnet): [Address Placeholder] (etherscan URL PLaceholder)
-* TokenStake (Ropsten): [Address Placeholder] (etherscan URL PLaceholder)
-* TokenStake (Kovan): [Address Placeholder] (etherscan URL PLaceholder)
+* TokenStake (Mainnet): [0x13e1367A455C45Aa736D7Ff2C5656bA2bD05AD46] (https://etherscan.io/address/0x13e1367A455C45Aa736D7Ff2C5656bA2bD05AD46)
+* TokenStake (Ropsten): [0xF153Aec75e1A8B2f5647bEfaC783b31a5c3Fba22] (https://etherscan.io/address/0xF153Aec75e1A8B2f5647bEfaC783b31a5c3Fba22)
+* TokenStake (Kovan): [0xa313cD603f818fEAeA612551b3319A3c6EFBa4A2] (https://etherscan.io/address/0xa313cD603f818fEAeA612551b3319A3c6EFBa4A2)
 
 ## Install
 
